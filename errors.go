@@ -1,5 +1,18 @@
 package lock
 
+type BuildError struct {
+	reason          string
+	noParentDirPath bool
+}
+
+func (o *BuildError) Error() string {
+	return o.reason
+}
+
+func (o *BuildError) ParentDirectoryNotSpecified() bool {
+	return o.noParentDirPath
+}
+
 type AcquireError struct {
 	reason     string
 	createFail bool

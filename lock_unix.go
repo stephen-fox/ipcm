@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -175,6 +176,17 @@ func acquirePipe(pipePath string) error {
 	}
 
 	return nil
+}
+
+func (o *defaultLockBuilder) Build() (Lock, error) {
+	if len(strings.TrimSpace(o.parentDirPath)) == 0 {
+		return &unixLock{}, &BuildError{
+			reason:          "a parent directory was not specified",
+			noParentDirPath: true,
+		}
+	}
+
+
 }
 
 func NewLock(parentDirPath string) Lock {
