@@ -14,9 +14,17 @@ const (
 	unableToReadPrefix   = "failed to read lock - "
 )
 
+// Lock represents a single instance of a running application.
 type Lock interface {
+	// Acquire attempts to acquire control of the lock. If the lock
+	// cannot be acquired, a non-nil error is returned.
 	Acquire() error
+
+	// Errs returns a chan for errors encountered while maintaining
+	// the lock.
 	Errs() chan error
+
+	// Release releases control of the lock.
 	Release()
 }
 
