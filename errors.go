@@ -3,6 +3,7 @@ package lock
 type BuildError struct {
 	reason     string
 	noLocation bool
+	notAbs     bool
 }
 
 func (o *BuildError) Error() string {
@@ -11,6 +12,10 @@ func (o *BuildError) Error() string {
 
 func (o *BuildError) LocationNotSpecified() bool {
 	return o.noLocation
+}
+
+func (o *BuildError) LocationNotFullyQualified() bool {
+	return o.notAbs
 }
 
 type AcquireError struct {
