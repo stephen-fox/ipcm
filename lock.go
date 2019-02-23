@@ -9,6 +9,7 @@ const (
 	name                 = ".grundy-lock-41xJwGFewWhrYZje"
 	acquireTimeout       = 2 * time.Second
 	inUseErr             = "another instance of the application is already running"
+	buildErrPrefix       = "failed to build lock - "
 	unableToCreatePrefix = "failed to create lock - "
 	unableToReadPrefix   = "failed to read lock - "
 )
@@ -24,16 +25,35 @@ type LockBuilder interface {
 	// a lock.
 	SetAcquireTimeout(time.Duration) LockBuilder
 
-	// SetParentDirPath sets the parent directory o
-	SetParentDirPath(string) LockBuilder
-	SetName(string) LockBuilder
+	// SetLocation sets the well-known location of the lock. New instances
+	// of an application must use the same argument.
+	//
+	// On unix systems, the string must be a fully qualified file path.
+	// For example:
+	// 	/var/myapplication/lock
+	//
+	// On Windows, this must be a string that follows the Windows
+	// PipeName rules:
+	// 	"[The location string] can include any character
+	// 	other than a backslash, including numbers and special
+	// 	characters. The entire [location] string can be up to
+	// 	256 characters long. [Location] names are
+	// 	not case-sensitive."
+	// 	https://docs.microsoft.com/en-us/windows/desktop/ipc/pipe-names
+	// For example:
+	//  myapplication-jdasjkldj84
+	SetLocation(string) LockBuilder
+
+	// Build generates a new instance of a Lock.
+	//
+	// The following defaults are used if not specified:
+	// 	Acquire timeout: 2 seconds
 	Build() (Lock, error)
 }
 
 type defaultLockBuilder struct {
 	acquireTimeout time.Duration
-	parentDirPath  string
-	name           string
+	location       string
 }
 
 func (o *defaultLockBuilder) SetAcquireTimeout(timeout time.Duration) LockBuilder {
@@ -41,13 +61,8 @@ func (o *defaultLockBuilder) SetAcquireTimeout(timeout time.Duration) LockBuilde
 	return o
 }
 
-func (o *defaultLockBuilder) SetParentDirPath(dirPath string) LockBuilder {
-	o.parentDirPath = dirPath
-	return o
-}
-
-func (o *defaultLockBuilder) SetName(name string) LockBuilder {
-	o.name = name
+func (o *defaultLockBuilder) SetLocation(location string) LockBuilder {
+	o.location = location
 	return o
 }
 
@@ -56,7 +71,16 @@ func (o *defaultLockBuilder) validateCommon() error {
 		o.acquireTimeout = acquireTimeout
 	}
 
-	if len(strings.TrimSpace(o.name)) == 0 {
-
+	if len(strings.TrimSpace(o.location)) == 0 {
+		return &BuildError{
+			reason:     buildErrPrefix + "a well known location was not specified",
+			noLocation: true,
+		}
 	}
+
+	return nil
+}
+
+func NewLockBuilder() LockBuilder {
+	return &defaultLockBuilder{}
 }

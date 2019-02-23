@@ -181,8 +181,8 @@ func acquirePipe(pipePath string) error {
 func (o *defaultLockBuilder) Build() (Lock, error) {
 	if len(strings.TrimSpace(o.parentDirPath)) == 0 {
 		return &unixLock{}, &BuildError{
-			reason:          "a parent directory was not specified",
-			noParentDirPath: true,
+			reason:     "a parent directory was not specified",
+			noLocation: true,
 		}
 	}
 
