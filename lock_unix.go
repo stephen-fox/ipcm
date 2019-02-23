@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -20,11 +19,10 @@ const (
 
 type unixLock struct {
 	Lock
-	mutex         *sync.Mutex
-	errs          chan error
-	stop          chan chan struct{}
-	parentDirPath string
-	pipePath      string
+	mutex    *sync.Mutex
+	errs     chan error
+	stop     chan chan struct{}
+	location string
 }
 
 func (o *unixLock) Acquire() error {
@@ -40,7 +38,7 @@ func (o *unixLock) Acquire() error {
 		return nil
 	}
 
-	err := os.MkdirAll(o.parentDirPath, dirMode)
+	err := os.MkdirAll(path.Dir(o.location), dirMode)
 	if err != nil {
 		return &AcquireError{
 			reason:  err.Error(),
@@ -48,15 +46,15 @@ func (o *unixLock) Acquire() error {
 		}
 	}
 
-	_, statErr := os.Stat(o.pipePath)
+	_, statErr := os.Stat(o.location)
 	if statErr == nil {
-		err := acquirePipe(o.pipePath)
+		err := acquirePipe(o.location)
 		if err != nil {
 			close(o.stop)
 			return err
 		}
 	} else {
-		err := syscall.Mkfifo(o.pipePath, pipeMode)
+		err := syscall.Mkfifo(o.location, pipeMode)
 		if err != nil {
 			close(o.stop)
 			return &AcquireError{
@@ -76,7 +74,7 @@ func (o *unixLock) manage() {
 
 	go func() {
 		for {
-			f, err := os.OpenFile(o.pipePath, os.O_WRONLY, pipeMode)
+			f, err := os.OpenFile(o.location, os.O_WRONLY, pipeMode)
 			select {
 			case _, open := <-done:
 				if !open {
@@ -103,7 +101,7 @@ func (o *unixLock) manage() {
 
 	c := <-o.stop
 	close(done)
-	os.Remove(o.pipePath)
+	os.Remove(o.location)
 	c <- struct{}{}
 }
 
@@ -179,26 +177,21 @@ func acquirePipe(pipePath string) error {
 }
 
 func (o *defaultLockBuilder) Build() (Lock, error) {
-	if len(strings.TrimSpace(o.parentDirPath)) == 0 {
+	if !path.IsAbs(o.location) || len(o.location) == 1 {
 		return &unixLock{}, &BuildError{
-			reason:     "a parent directory was not specified",
-			noLocation: true,
+			reason: buildErrPrefix + "the specified location is not a fully qualified file path - '" + o.location + "'",
+			notAbs: true,
 		}
 	}
 
-
-}
-
-func NewLock(parentDirPath string) Lock {
 	l := &unixLock{
-		parentDirPath: parentDirPath,
-		pipePath:      path.Join(parentDirPath, name),
-		mutex:         &sync.Mutex{},
-		errs:          make(chan error),
-		stop:          make(chan chan struct{}),
+		mutex:    &sync.Mutex{},
+		errs:     make(chan error),
+		stop:     make(chan chan struct{}),
+		location: o.location,
 	}
 
 	close(l.stop)
 
-	return l
+	return l, nil
 }
