@@ -6,42 +6,35 @@ import (
 )
 
 const (
-	name                 = ".grundy-lock-41xJwGFewWhrYZje"
-	acquireTimeout       = 2 * time.Second
-	inUseErr             = "another instance of the application is already running"
-	buildErrPrefix       = "failed to build lock - "
-	unableToCreatePrefix = "failed to create lock - "
-	unableToReadPrefix   = "failed to read lock - "
+	name                  = ".grundy-lock-41xJwGFewWhrYZje"
+	acquireTimeout        = 2 * time.Second
+	inUseErr              = "another instance of the application is already running"
+	configureErrPrefix    = "failed to configure lock - "
+	unableToCreatePrefix  = "failed to create lock - "
+	unableToAcquirePrefix = "failed to acquire lock - "
 )
 
 // Lock represents a single instance of a running application.
 type Lock interface {
-	// Acquire attempts to acquire control of the lock. If the lock
-	// cannot be acquired, a non-nil error is returned.
-	Acquire() error
-
-	// Errs returns a chan for errors encountered while maintaining
-	// the lock.
-	Errs() chan error
-
 	// Release releases control of the lock.
-	Release()
+	Release() error
 }
 
-type LockBuilder interface {
+// Acquirer is used to configure and acquire a Lock.
+type Acquirer interface {
 	// SetAcquireTimeout sets the amount of time to wait when acquiring
-	// a lock.
-	SetAcquireTimeout(time.Duration) LockBuilder
+	// the Lock.
+	SetAcquireTimeout(time.Duration) Acquirer
 
-	// SetLocation sets the well-known location of the lock. New instances
-	// of an application must use the same argument.
+	// SetLocation sets the well-known location of the Lock.
+	// New instances of an application must use the same argument
+	// when acquiring the Lock.
 	//
 	// On unix systems, the string must be a fully qualified file path.
 	// For example:
 	// 	/var/myapplication/lock
 	//
-	// On Windows, this must be a string that follows the Windows
-	// PipeName rules:
+	// On Windows, the string must follow the Windows PipeName rules:
 	// 	"[The location string] can include any character
 	// 	other than a backslash, including numbers and special
 	// 	characters. The entire [location] string can be up to
@@ -50,38 +43,49 @@ type LockBuilder interface {
 	// 	https://docs.microsoft.com/en-us/windows/desktop/ipc/pipe-names
 	// For example:
 	//  myapplication-jdasjkldj84
-	SetLocation(string) LockBuilder
+	SetLocation(string) Acquirer
 
-	// Build generates a new instance of a Lock.
+	// SetUnexpectedLossChan sets a channel that is notified when the
+	// Lock is unexpectedly lost.
+	SetUnexpectedLossChan(chan error) Acquirer
+
+	// Acquire acquires the Lock. A non-nil error is returned
+	// if the Lock cannot be acquired.
 	//
 	// The following defaults are used if not specified:
 	// 	Acquire timeout: 2 seconds
-	Build() (Lock, error)
+	Acquire() (Lock, error)
 }
 
-type defaultLockBuilder struct {
+type defaultAcquirer struct {
 	acquireTimeout time.Duration
 	location       string
+	unexpectedLoss chan error
 }
 
-func (o *defaultLockBuilder) SetAcquireTimeout(timeout time.Duration) LockBuilder {
+func (o *defaultAcquirer) SetAcquireTimeout(timeout time.Duration) Acquirer {
 	o.acquireTimeout = timeout
 	return o
 }
 
-func (o *defaultLockBuilder) SetLocation(location string) LockBuilder {
+func (o *defaultAcquirer) SetLocation(location string) Acquirer {
 	o.location = location
 	return o
 }
 
-func (o *defaultLockBuilder) validateCommon() error {
+func (o *defaultAcquirer) SetUnexpectedLossChan(c chan error) Acquirer {
+	o.unexpectedLoss = c
+	return o
+}
+
+func (o *defaultAcquirer) validateCommon() error {
 	if o.acquireTimeout == 0 {
 		o.acquireTimeout = acquireTimeout
 	}
 
 	if len(strings.TrimSpace(o.location)) == 0 {
-		return &BuildError{
-			reason:     buildErrPrefix + "a well known location was not specified",
+		return &ConfigureError{
+			reason:     configureErrPrefix + "a well known location was not specified",
 			noLocation: true,
 		}
 	}
@@ -89,6 +93,6 @@ func (o *defaultLockBuilder) validateCommon() error {
 	return nil
 }
 
-func NewLockBuilder() LockBuilder {
-	return &defaultLockBuilder{}
+func NewAcquirer() Acquirer {
+	return &defaultAcquirer{}
 }

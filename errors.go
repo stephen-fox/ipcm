@@ -1,20 +1,20 @@
 package lock
 
-type BuildError struct {
+type ConfigureError struct {
 	reason     string
 	noLocation bool
 	notAbs     bool
 }
 
-func (o *BuildError) Error() string {
+func (o *ConfigureError) Error() string {
 	return o.reason
 }
 
-func (o *BuildError) LocationNotSpecified() bool {
+func (o *ConfigureError) LocationNotSpecified() bool {
 	return o.noLocation
 }
 
-func (o *BuildError) LocationNotFullyQualified() bool {
+func (o *ConfigureError) LocationNotFullyQualified() bool {
 	return o.notAbs
 }
 
