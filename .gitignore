@@ -1,3 +1,6 @@
 # JetBrains.
 .idea/
 *.iml
+
+# Test data.
+.testdata/
