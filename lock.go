@@ -42,7 +42,7 @@ type Acquirer interface {
 	// 	not case-sensitive."
 	// 	https://docs.microsoft.com/en-us/windows/desktop/ipc/pipe-names
 	// For example:
-	//  myapplication-jdasjkldj84
+	// 	myapplication-jdasjkldj84
 	SetLocation(string) Acquirer
 
 	// SetUnexpectedLossChan sets a channel that is notified when the
