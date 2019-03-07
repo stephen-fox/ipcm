@@ -40,11 +40,6 @@ func (o *unixLock) Release() error {
 		return err
 	}
 
-	err = os.Remove(o.file.Name())
-	if err != nil {
-		return err
-	}
-
 	o.file = nil
 
 	return nil
