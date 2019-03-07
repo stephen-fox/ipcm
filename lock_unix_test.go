@@ -13,8 +13,8 @@ const (
 )
 
 func TestDefaultAcquirer_Acquire(t *testing.T) {
-	dirPath := setupLockFileTestEnv(t)
-	lockFilePath := path.Join(dirPath, lockFileName)
+	env := setupLockFileTestEnv(t)
+	lockFilePath := path.Join(env.dataDirPath, lockFileName)
 
 	l, err := NewAcquirer().
 		SetLocation(lockFilePath).
@@ -29,25 +29,11 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 		}
 	}()
 
-	src := `package main
-
-import (
-	"log"
-
-	"github.com/stephen-fox/lock"
-)
-
-func main() {
-	l, err := lock.NewAcquirer().
-		SetLocation("` + lockFilePath + `").
-		Acquire()
-	if err != nil {
-		log.Fatal(err.Error())
+	o := testHarnessOptions{
+		lockLocation: lockFilePath,
 	}
-	defer l.Release()
-}
-`
-	_, err = prepareTestHarness([]byte(src), dirPath, t).CombinedOutput()
+
+	_, err = prepareTestHarness(env, o, t).CombinedOutput()
 	if err == nil {
 		t.Fatal("expected test harness lock acquire to fail, but it did not")
 	}
@@ -64,9 +50,9 @@ func TestDefaultAcquirer_Acquire_RelativePath(t *testing.T) {
 }
 
 func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
-	dirPath := setupLockFileTestEnv(t)
-	lockFilePath := path.Join(dirPath, lockFileName)
-	testHarness := newProcessAcquiresLockAndIdles(dirPath, lockFilePath, t)
+	env := setupLockFileTestEnv(t)
+	lockFilePath := path.Join(env.dataDirPath, lockFileName)
+	testHarness := newProcessAcquiresLockAndIdles(env, lockFilePath, t)
 	defer func() {
 		err := testHarness.Process.Kill()
 		if err != nil {
@@ -93,9 +79,9 @@ func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
 }
 
 func TestDefaultAcquirer_Acquire_AlreadyAcquired(t *testing.T) {
-	dirPath := setupLockFileTestEnv(t)
-	lockFilePath := path.Join(dirPath, lockFileName)
-	testHarness := newProcessAcquiresLockAndIdles(dirPath, lockFilePath, t)
+	env := setupLockFileTestEnv(t)
+	lockFilePath := path.Join(env.dataDirPath, lockFileName)
+	testHarness := newProcessAcquiresLockAndIdles(env, lockFilePath, t)
 	defer func() {
 		err := testHarness.Process.Kill()
 		if err != nil {

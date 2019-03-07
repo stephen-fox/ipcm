@@ -2,7 +2,6 @@ package lock
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -10,7 +9,31 @@ import (
 	"time"
 )
 
-func setupLockFileTestEnv(t *testing.T) (testDataDirPath string) {
+type testEnv struct {
+	dataDirPath    string
+	harnessSrcPath string
+}
+
+type testHarnessOptions struct {
+	lockLocation string
+	loopForever  bool
+}
+
+func (o testHarnessOptions) args(t *testing.T) []string {
+	if len(o.lockLocation) == 0 {
+		t.Fatal("lock location was not specified for test harness")
+	}
+
+	args := []string{"-location", o.lockLocation}
+
+	if o.loopForever {
+		args = append(args, "-loop")
+	}
+
+	return args
+}
+
+func setupLockFileTestEnv(t *testing.T) testEnv {
 	dirPath, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current working directory for testing - %s", err.Error())
@@ -21,67 +44,41 @@ func setupLockFileTestEnv(t *testing.T) (testDataDirPath string) {
 		t.Fatalf("current working directory is not repo - %s", err.Error())
 	}
 
-	dirPath = path.Join(dirPath, ".testdata")
+	testDataDir := path.Join(dirPath, ".testdata")
 
-	err = os.MkdirAll(dirPath, 0700)
+	err = os.MkdirAll(testDataDir, 0700)
 	if err != nil {
 		t.Fatalf("failed to create test data directory - %s", err.Error())
 	}
 
-	return dirPath
+	return testEnv{
+		dataDirPath:    testDataDir,
+		harnessSrcPath: path.Join(dirPath, "cmd/testharness/main.go"),
+	}
 }
 
-func prepareTestHarness(src []byte, dirPath string, t *testing.T) *exec.Cmd {
-	srcFilePath := path.Join(dirPath, "testharness.go")
-
-	err := ioutil.WriteFile(srcFilePath, []byte(src), 0600)
-	if err != nil {
-		t.Fatalf("failed to write testharness source - %s", err.Error())
-	}
-
-	testHarnessExePath := path.Join(dirPath, "testharness")
-
-	raw, err := exec.Command("go", "build", "-o", testHarnessExePath, srcFilePath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("test harness source failed to compile - %s - %s", err.Error(), raw)
-	}
+func prepareTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *exec.Cmd {
+	testHarnessExePath := path.Join(env.dataDirPath, "testharness")
 
 	// Note: If we decide to use 'go run (whatever.go)' instead,
 	// we need to make sure its process group ID (PGID) gets set
 	// to the same value as the exe that it compiles. This is
 	// avoided by using 'go build (whatever)' and then executing
 	// the compiled binary.
-	return exec.Command(testHarnessExePath)
-}
-
-func newProcessAcquiresLockAndIdles(testDataDirPath string, lockFilePath string, t *testing.T) *exec.Cmd {
-	src := `package main
-
-import (
-	"fmt"
-	"log"
-	"time"
-
-	"github.com/stephen-fox/lock"
-)
-
-func main() {
-	l, err := lock.NewAcquirer().
-		SetLocation("` + lockFilePath + `").
-		Acquire()
+	raw, err := exec.Command("go", "build", "-o", testHarnessExePath, env.harnessSrcPath).CombinedOutput()
 	if err != nil {
-		log.Fatal(err.Error())
+		t.Fatalf("test harness source failed to compile - %s - %s", err.Error(), raw)
 	}
-	defer l.Release()
 
-	for {
-		fmt.Println("ready")
-		time.Sleep(1 * time.Second)
-	}
+	return exec.Command(testHarnessExePath, options.args(t)...)
 }
-`
 
-	testHarness := prepareTestHarness([]byte(src), testDataDirPath, t)
+func newProcessAcquiresLockAndIdles(env testEnv, lockLocation string, t *testing.T) *exec.Cmd {
+	o := testHarnessOptions{
+		lockLocation: lockLocation,
+		loopForever:  true,
+	}
+	testHarness := prepareTestHarness(env, o, t)
 
 	// Need to start test harness async. We need to be able to
 	// test exactly when the harness acquires the lock, otherwise
