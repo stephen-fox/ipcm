@@ -1,6 +1,7 @@
 package lock
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -9,9 +10,9 @@ const (
 	name                  = ".grundy-lock-41xJwGFewWhrYZje"
 	acquireTimeout        = 2 * time.Second
 	inUseErr              = "another instance of the application is already running"
-	configureErrPrefix    = "failed to configure lock - "
-	unableToCreatePrefix  = "failed to create lock - "
-	unableToAcquirePrefix = "failed to acquire lock - "
+	configureErrPrefix    = "failed to configure lock -"
+	unableToCreatePrefix  = "failed to create lock -"
+	unableToAcquirePrefix = "failed to acquire lock -"
 )
 
 // Lock represents a single instance of a running application.
@@ -85,7 +86,8 @@ func (o *defaultAcquirer) validateCommon() error {
 
 	if len(strings.TrimSpace(o.location)) == 0 {
 		return &ConfigureError{
-			reason:     configureErrPrefix + "a well known location was not specified",
+			reason:     fmt.Sprintf("%s a well known location was not specified",
+				configureErrPrefix),
 			noLocation: true,
 		}
 	}

@@ -58,8 +58,8 @@ func (o *defaultAcquirer) Acquire() (Lock, error) {
 
 	if !path.IsAbs(o.location) || len(o.location) == 1 {
 		return nil, &ConfigureError{
-			reason: configureErrPrefix + "the specified location is not a fully qualified file path - '" +
-				o.location + "'",
+			reason: fmt.Sprintf("%s the specified location is not a fully qualified file path - '%s'",
+				configureErrPrefix, o.location),
 			notAbs: true,
 		}
 	}
@@ -67,7 +67,7 @@ func (o *defaultAcquirer) Acquire() (Lock, error) {
 	err = os.MkdirAll(path.Dir(o.location), dirMode)
 	if err != nil {
 		return nil, &AcquireError{
-			reason:  unableToCreatePrefix + err.Error(),
+			reason:  fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),
 			dirFail: true,
 		}
 	}
@@ -75,7 +75,7 @@ func (o *defaultAcquirer) Acquire() (Lock, error) {
 	f, err := os.OpenFile(o.location, os.O_RDONLY|os.O_CREATE, lockMode)
 	if err != nil {
 		return nil, &AcquireError{
-			reason:     unableToCreatePrefix + err.Error(),
+			reason:     fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),
 			createFail: true,
 		}
 	}
@@ -84,9 +84,9 @@ func (o *defaultAcquirer) Acquire() (Lock, error) {
 	if err != nil {
 		f.Close()
 		return nil, &AcquireError{
-			reason:     fmt.Sprintf("%stried to get lock for %s - %s",
+			reason: fmt.Sprintf("%s tried to get lock for %s - %s",
 				unableToAcquirePrefix, o.acquireTimeout.String(), err.Error()),
-			createFail: true,
+			inUse:  true,
 		}
 	}
 
