@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -59,6 +60,9 @@ func setupLockFileTestEnv(t *testing.T) testEnv {
 
 func prepareTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *exec.Cmd {
 	testHarnessExePath := path.Join(env.dataDirPath, "testharness")
+	if runtime.GOOS == "windows" {
+		testHarnessExePath = testHarnessExePath + ".exe"
+	}
 
 	// Note: If we decide to use 'go run (whatever.go)' instead,
 	// we need to make sure its process group ID (PGID) gets set
