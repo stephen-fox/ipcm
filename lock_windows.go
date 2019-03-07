@@ -1,109 +1,67 @@
 package lock
 
 import (
-	"net"
-	"sync"
+	"fmt"
+	"unsafe"
 
-	"github.com/Microsoft/go-winio"
+	"golang.org/x/sys/windows"
 )
 
 const (
-	lockUri = "\\\\.\\pipe\\" + name
+	kernel32Name = "kernel32.dll"
+	createMutexW = "CreateMutexW"
+	globalPrefix = "Global\\"
 )
 
 type windowsLock struct {
-	Lock
-	mutex *sync.Mutex
-	errs  chan error
-	stop  chan chan struct{}
+
 }
 
-func (o *windowsLock) Acquire() error {
-	o.mutex.Lock()
-	defer o.mutex.Unlock()
+func (o *windowsLock) Release() error {
+	// TODO:
+	return nil
+}
 
-	select {
-	case _, open := <-o.stop:
-		if !open {
-			o.stop = make(chan chan struct{})
-		}
-	default:
-		return nil
+func (o *defaultAcquirer) Acquire() (Lock, error) {
+	err := o.validateCommon()
+	if err != nil {
+		return nil, err
 	}
 
-	listener, err := winio.ListenPipe(lockUri, &winio.PipeConfig{})
-	if err != nil {
-		close(o.stop)
-		return &AcquireError{
-			reason: inUseErr,
+	k32 := windows.NewLazyDLL(kernel32Name)
+	if k32 == nil {
+		return nil, &AcquireError{
+			reason:  fmt.Sprintf("%s failed to load %s",
+				unableToCreatePrefix, kernel32Name),
+			dllFail: true,
+		}
+	}
+
+	procCreateMutex := k32.NewProc(createMutexW)
+	if procCreateMutex == nil {
+		return nil, &AcquireError{
+			reason:   fmt.Sprintf("%s failed to load %s procedure from %s",
+				unableToCreatePrefix, createMutexW, kernel32Name),
+			procFail: true,
+		}
+	}
+
+	// TODO: Add timeout support.
+
+	// TODO: Global should be an OS specific option.
+	ptr := uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(globalPrefix + o.location)))
+	// TODO: Save the returned pointer and release it?
+	_, _, err = procCreateMutex.Call(0, 0, ptr)
+	errNum := int(err.(windows.Errno))
+	if errNum > 0 {
+		return nil, &AcquireError{
+			reason: fmt.Sprintf("%s got return code %d - %s",
+				unableToAcquirePrefix, int(err.(windows.Errno)), err.Error()),
 			inUse:  true,
 		}
 	}
 
-	go o.manage(listener)
+	return &windowsLock{
 
-	return nil
-}
-
-func (o *windowsLock) manage(listener net.Listener) {
-	done := make(chan struct{})
-
-	go func() {
-		for {
-			c, err := listener.Accept()
-			select {
-			case _, open := <-done:
-				if !open {
-					return
-				}
-			default:
-				if err != nil {
-					o.errs <- err
-					continue
-				}
-
-				c.Close()
-			}
-		}
-	}()
-
-	c := <-o.stop
-	close(done)
-	listener.Close()
-	c <- struct{}{}
-}
-
-func (o *windowsLock) Errs() chan error {
-	return o.errs
-}
-
-func (o *windowsLock) Release() {
-	o.mutex.Lock()
-	defer o.mutex.Unlock()
-
-	select {
-	case _, open := <-o.stop:
-		if !open {
-			return
-		}
-	default:
-	}
-
-	c := make(chan struct{})
-	o.stop <- c
-	<-c
-
-	close(o.stop)
-}
-
-func NewLock(parentDirPath string) Lock {
-	l := &windowsLock{
-		mutex: &sync.Mutex{},
-		errs:  make(chan error),
-		stop:  make(chan chan struct{}),
-	}
-
-	close(l.stop)
-
-	return l
+	}, nil
 }
