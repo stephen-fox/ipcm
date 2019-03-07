@@ -91,6 +91,8 @@ func (o *defaultAcquirer) Acquire() (Lock, error) {
 	}, nil
 }
 
+// TODO: This implementation can take longer than the specified timeout
+//  because each attempt to flock takes some time.
 func timedFlock(f *os.File, timeout time.Duration) error {
 	var err error
 	max := 10
