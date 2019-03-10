@@ -15,9 +15,11 @@ const (
 
 // Lock represents a single instance of a running application.
 type Lock interface {
-	// Release releases the lock. Be advised, certain OS implementations
-	// require that the lock be released by the same thread that
-	// originally acquired the lock.
+	// Release releases the Lock.
+	//
+	// Be advised that Windows requires the Lock be released by the
+	// same thread that originally acquired the Lock. Please review
+	// 'runtime.LockOSThread()' for more information.
 	Release() error
 }
 
@@ -35,7 +37,7 @@ type Acquirer interface {
 	// For example:
 	// 	/var/myapplication/lock
 	//
-	// On Windows, the string must can consist of any character except
+	// On Windows, the string can consist of any character except
 	// backslash. For more information, refer to the 'CreateMutexW'
 	// API documentation:
 	// https://docs.microsoft.com/en-us/windows/desktop/api/synchapi/nf-synchapi-createmutexw
@@ -49,6 +51,10 @@ type Acquirer interface {
 
 	// Acquire acquires the Lock. A non-nil error is returned
 	// if the Lock cannot be acquired.
+	//
+	// Be advised that Windows requires the Lock be released by the
+	// same thread that originally acquired the Lock. Please review
+	// 'runtime.LockOSThread()' for more information.
 	//
 	// The following defaults are used if not specified:
 	// 	Acquire timeout: 2 seconds
