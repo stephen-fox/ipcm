@@ -15,7 +15,9 @@ const (
 
 // Lock represents a single instance of a running application.
 type Lock interface {
-	// Release releases control of the lock.
+	// Release releases the lock. Be advised, certain OS implementations
+	// require that the lock be released by the same thread that
+	// originally acquired the lock.
 	Release() error
 }
 
