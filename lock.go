@@ -7,9 +7,7 @@ import (
 )
 
 const (
-	name                  = ".grundy-lock-41xJwGFewWhrYZje"
 	acquireTimeout        = 2 * time.Second
-	inUseErr              = "another instance of the application is already running"
 	configureErrPrefix    = "failed to configure lock -"
 	unableToCreatePrefix  = "failed to create lock -"
 	unableToAcquirePrefix = "failed to acquire lock -"
@@ -17,7 +15,11 @@ const (
 
 // Lock represents a single instance of a running application.
 type Lock interface {
-	// Release releases control of the lock.
+	// Release releases the Lock.
+	//
+	// Be advised that Windows requires the Lock be released by the
+	// same thread that originally acquired the Lock. Please review
+	// 'runtime.LockOSThread()' for more information.
 	Release() error
 }
 
@@ -35,15 +37,12 @@ type Acquirer interface {
 	// For example:
 	// 	/var/myapplication/lock
 	//
-	// On Windows, the string must follow the Windows PipeName rules:
-	// 	"[The location string] can include any character
-	// 	other than a backslash, including numbers and special
-	// 	characters. The entire [location] string can be up to
-	// 	256 characters long. [Location] names are
-	// 	not case-sensitive."
-	// 	https://docs.microsoft.com/en-us/windows/desktop/ipc/pipe-names
+	// On Windows, the string can consist of any character except
+	// backslash. For more information, refer to the 'CreateMutexW'
+	// API documentation:
+	// https://docs.microsoft.com/en-us/windows/desktop/api/synchapi/nf-synchapi-createmutexw
 	// For example:
-	// 	myapplication-jdasjkldj84
+	// 	myapplication
 	SetLocation(string) Acquirer
 
 	// SetUnexpectedLossChan sets a channel that is notified when the
@@ -52,6 +51,10 @@ type Acquirer interface {
 
 	// Acquire acquires the Lock. A non-nil error is returned
 	// if the Lock cannot be acquired.
+	//
+	// Be advised that Windows requires the Lock be released by the
+	// same thread that originally acquired the Lock. Please review
+	// 'runtime.LockOSThread()' for more information.
 	//
 	// The following defaults are used if not specified:
 	// 	Acquire timeout: 2 seconds

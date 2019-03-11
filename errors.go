@@ -24,6 +24,8 @@ type AcquireError struct {
 	readFail   bool
 	inUse      bool
 	dirFail    bool
+	dllFail    bool
+	procFail   bool
 }
 
 func (o *AcquireError) Error() string {
@@ -44,4 +46,12 @@ func (o *AcquireError) AnotherInstanceOwnsLock() bool {
 
 func (o *AcquireError) FailedToCreateParentDirectory() bool {
 	return o.dirFail
+}
+
+func (o *AcquireError) WindowsDllLoadFailed() bool {
+	return o.dllFail
+}
+
+func (o *AcquireError) WindowsProcedureFailed() bool {
+	return o.procFail
 }
