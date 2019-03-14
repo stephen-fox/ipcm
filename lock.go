@@ -45,10 +45,6 @@ type Acquirer interface {
 	// 	myapplication
 	SetLocation(string) Acquirer
 
-	// SetUnexpectedLossChan sets a channel that is notified when the
-	// Lock is unexpectedly lost.
-	SetUnexpectedLossChan(chan error) Acquirer
-
 	// Acquire acquires the Lock. A non-nil error is returned
 	// if the Lock cannot be acquired.
 	//
@@ -74,11 +70,6 @@ func (o *defaultAcquirer) SetAcquireTimeout(timeout time.Duration) Acquirer {
 
 func (o *defaultAcquirer) SetLocation(location string) Acquirer {
 	o.location = location
-	return o
-}
-
-func (o *defaultAcquirer) SetUnexpectedLossChan(c chan error) Acquirer {
-	o.unexpectedLoss = c
 	return o
 }
 
