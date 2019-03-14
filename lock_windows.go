@@ -1,109 +1,148 @@
 package lock
 
 import (
-	"net"
-	"sync"
+	"fmt"
+	"time"
+	"unsafe"
 
-	"github.com/Microsoft/go-winio"
+	"golang.org/x/sys/windows"
 )
 
 const (
-	lockUri = "\\\\.\\pipe\\" + name
+	kernel32Name        = "kernel32.dll"
+	createMutexW        = "CreateMutexW"
+	releaseMutex        = "ReleaseMutex"
+	waitForSingleObject = "WaitForSingleObject"
+	globalPrefix        = "Global\\"
 )
 
 type windowsLock struct {
-	Lock
-	mutex *sync.Mutex
-	errs  chan error
-	stop  chan chan struct{}
+	kernel32    *windows.LazyDLL
+	mutexHandle uintptr
 }
 
-func (o *windowsLock) Acquire() error {
-	o.mutex.Lock()
-	defer o.mutex.Unlock()
-
-	select {
-	case _, open := <-o.stop:
-		if !open {
-			o.stop = make(chan chan struct{})
-		}
-	default:
-		return nil
-	}
-
-	listener, err := winio.ListenPipe(lockUri, &winio.PipeConfig{})
+func (o *windowsLock) Release() error {
+	releaseMutexProc, err := getProcedure(releaseMutex, o.kernel32)
 	if err != nil {
-		close(o.stop)
-		return &AcquireError{
-			reason: inUseErr,
-			inUse:  true,
-		}
+		return err
 	}
 
-	go o.manage(listener)
+	_, _, err = releaseMutexProc.Call(o.mutexHandle)
+	errNum := int(err.(windows.Errno))
+	if errNum > 0 {
+		return fmt.Errorf("got return code %d - %s", errNum, err.Error())
+	}
+
+	err = windows.CloseHandle(windows.Handle(o.mutexHandle))
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
-func (o *windowsLock) manage(listener net.Listener) {
-	done := make(chan struct{})
+func (o *defaultAcquirer) Acquire() (Lock, error) {
+	err := o.validateCommon()
+	if err != nil {
+		return nil, err
+	}
 
-	go func() {
-		for {
-			c, err := listener.Accept()
-			select {
-			case _, open := <-done:
-				if !open {
-					return
-				}
-			default:
-				if err != nil {
-					o.errs <- err
-					continue
-				}
+	return timedCreateMutex(o.location, o.acquireTimeout)
+}
 
-				c.Close()
+func timedCreateMutex(name string, timeout time.Duration) (*windowsLock, error) {
+	api, err := loadCreateMutexApi()
+	if err != nil {
+		return nil, err
+	}
+
+	start := time.Now()
+
+	for time.Since(start) < timeout {
+		// TODO: Global should be an OS specific option.
+		mutexName := uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(globalPrefix + name)))
+		mutexHandle, _, err := api.createMutexProc.Call(0, 0, mutexName)
+		errNum := int(err.(windows.Errno))
+		if mutexHandle == 0 || errNum > 0 {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		_, _, err = api.waitForSingleObjectProc.Call(mutexHandle, uintptr(timeout.Seconds() * 1000))
+		errNum = int(err.(windows.Errno))
+		if errNum > 0 {
+			return nil, &AcquireError{
+				reason: fmt.Sprintf("%s got return code %d - %s",
+					unableToAcquirePrefix, int(errNum), err.Error()),
+				inUse:  true,
 			}
 		}
-	}()
 
-	c := <-o.stop
-	close(done)
-	listener.Close()
-	c <- struct{}{}
+		return &windowsLock{
+			kernel32:    api.kernel32,
+			mutexHandle: mutexHandle,
+		}, nil
+	}
+
+	return nil, &AcquireError{
+		reason: fmt.Sprintf("%s failed to acquire lock after %s",
+			unableToAcquirePrefix, timeout.String()),
+		inUse:  true,
+	}
 }
 
-func (o *windowsLock) Errs() chan error {
-	return o.errs
+type createMutexApi struct {
+	kernel32                *windows.LazyDLL
+	createMutexProc         *windows.LazyProc
+	waitForSingleObjectProc *windows.LazyProc
 }
 
-func (o *windowsLock) Release() {
-	o.mutex.Lock()
-	defer o.mutex.Unlock()
-
-	select {
-	case _, open := <-o.stop:
-		if !open {
-			return
+func loadCreateMutexApi() (*createMutexApi, error) {
+	kernel32 := windows.NewLazyDLL(kernel32Name)
+	if kernel32 == nil {
+		return nil, &AcquireError{
+			reason:  fmt.Sprintf("%s failed to load %s",
+				unableToCreatePrefix, kernel32Name),
+			dllFail: true,
 		}
-	default:
 	}
 
-	c := make(chan struct{})
-	o.stop <- c
-	<-c
+	createMutexProc, err := getProcedure(createMutexW, kernel32)
+	if err != nil {
+		return nil, &AcquireError{
+			reason:   fmt.Sprintf("%s %s",
+				unableToCreatePrefix, err.Error()),
+			procFail: true,
+		}
+	}
 
-	close(o.stop)
+	waitForSingleObjectProc, err := getProcedure(waitForSingleObject, kernel32)
+	if err != nil {
+		return nil, &AcquireError{
+			reason:   fmt.Sprintf("%s - %s",
+				unableToCreatePrefix, err.Error()),
+			procFail: true,
+		}
+	}
+
+	return &createMutexApi{
+		kernel32:                kernel32,
+		createMutexProc:         createMutexProc,
+		waitForSingleObjectProc: waitForSingleObjectProc,
+	}, nil
 }
 
-func NewLock(parentDirPath string) Lock {
-	l := &windowsLock{
-		mutex: &sync.Mutex{},
-		errs:  make(chan error),
-		stop:  make(chan chan struct{}),
+func getProcedure(procedureName string, dll *windows.LazyDLL) (*windows.LazyProc, error) {
+	proc := dll.NewProc(procedureName)
+	if proc == nil {
+		return nil, fmt.Errorf("procedure %s in DLL %s is nil",
+			procedureName, dll.Name)
 	}
 
-	close(l.stop)
+	err := proc.Find()
+	if err != nil {
+		return nil, err
+	}
 
-	return l
+	return proc, nil
 }

@@ -3,190 +3,109 @@
 package lock
 
 import (
-	"bufio"
+	"fmt"
 	"os"
 	"path"
-	"strconv"
 	"sync"
-	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
 	dirMode  = 0755
-	pipeMode = 0644
+	lockMode = 0644
 )
 
 type unixLock struct {
-	Lock
-	mutex         *sync.Mutex
-	errs          chan error
-	stop          chan chan struct{}
-	parentDirPath string
-	pipePath      string
+	mutex *sync.Mutex
+	file  *os.File
 }
 
-func (o *unixLock) Acquire() error {
+func (o *unixLock) Release() error {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
-	select {
-	case _, open := <-o.stop:
-		if !open {
-			o.stop = make(chan chan struct{})
-		}
-	default:
+	if o.file == nil {
 		return nil
 	}
 
-	err := os.MkdirAll(o.parentDirPath, dirMode)
+	err := unix.Flock(int(o.file.Fd()), unix.LOCK_UN)
 	if err != nil {
-		return &AcquireError{
-			reason:  err.Error(),
+		return err
+	}
+
+	err = o.file.Close()
+	if err != nil {
+		return err
+	}
+
+	o.file = nil
+
+	return nil
+}
+
+func (o *defaultAcquirer) Acquire() (Lock, error) {
+	err := o.validateCommon()
+	if err != nil {
+		return nil, err
+	}
+
+	if !path.IsAbs(o.location) || len(o.location) == 1 {
+		return nil, &ConfigureError{
+			reason: fmt.Sprintf("%s the specified location is not a fully qualified file path - '%s'",
+				configureErrPrefix, o.location),
+			notAbs: true,
+		}
+	}
+
+	err = os.MkdirAll(path.Dir(o.location), dirMode)
+	if err != nil {
+		return nil, &AcquireError{
+			reason:  fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),
 			dirFail: true,
 		}
 	}
 
-	_, statErr := os.Stat(o.pipePath)
-	if statErr == nil {
-		err := acquirePipe(o.pipePath)
-		if err != nil {
-			close(o.stop)
-			return err
-		}
-	} else {
-		err := syscall.Mkfifo(o.pipePath, pipeMode)
-		if err != nil {
-			close(o.stop)
-			return &AcquireError{
-				reason:     unableToCreatePrefix + err.Error(),
-				createFail: true,
-			}
+	f, err := os.OpenFile(o.location, os.O_RDONLY|os.O_CREATE, lockMode)
+	if err != nil {
+		return nil, &AcquireError{
+			reason:     fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),
+			createFail: true,
 		}
 	}
 
-	go o.manage()
-
-	return nil
-}
-
-func (o *unixLock) manage() {
-	done := make(chan struct{})
-
-	go func() {
-		for {
-			f, err := os.OpenFile(o.pipePath, os.O_WRONLY, pipeMode)
-			select {
-			case _, open := <-done:
-				if !open {
-					f.Close()
-					return
-				}
-			default:
-				if err != nil {
-					o.errs <- err
-					continue
-				}
-
-				_, err = f.WriteString(strconv.Itoa(os.Getpid()) + "\n")
-				if err != nil {
-					f.Close()
-					o.errs <- err
-					continue
-				}
-
-				f.Close()
-			}
-		}
-	}()
-
-	c := <-o.stop
-	close(done)
-	os.Remove(o.pipePath)
-	c <- struct{}{}
-}
-
-func (o *unixLock) Errs() chan error {
-	return o.errs
-}
-
-func (o *unixLock) Release() {
-	o.mutex.Lock()
-	defer o.mutex.Unlock()
-
-	select {
-	case _, open := <-o.stop:
-		if !open {
-			return
-		}
-	default:
-	}
-
-	c := make(chan struct{})
-	o.stop <- c
-	<-c
-
-	close(o.stop)
-}
-
-func acquirePipe(pipePath string) error {
-	openResult := make(chan error)
-	defer close(openResult)
-
-	go func() {
-		f, err := os.Open(pipePath)
-		if err == nil {
-			// Drain the pipe to prevent "broken pipe" errors
-			// on the writer's end.
-			scanner := bufio.NewScanner(f)
-			scanner.Scan()
-		}
+	err = timedFlock(f, o.acquireTimeout)
+	if err != nil {
 		f.Close()
-
-		select {
-		case _, open := <-openResult:
-			if !open {
-				return
-			}
-		default:
-			openResult <- err
-		}
-	}()
-
-	timeout := time.NewTimer(acquireTimeout)
-
-	select {
-	case err := <-openResult:
-		// Another instance of the application owns the pipe
-		// if we can read before the timeout occurs.
-		if err != nil {
-			return &AcquireError{
-				reason:   unableToReadPrefix + err.Error(),
-				readFail: true,
-			}
-		}
-
-		return &AcquireError{
-			reason: inUseErr,
+		return nil, &AcquireError{
+			reason: fmt.Sprintf("%s tried to get lock for %s - %s",
+				unableToAcquirePrefix, o.acquireTimeout.String(), err.Error()),
 			inUse:  true,
 		}
-	case <-timeout.C:
-		// No one is home.
 	}
 
-	return nil
+	return  &unixLock{
+		mutex: &sync.Mutex{},
+		file:  f,
+	}, nil
 }
 
-func NewLock(parentDirPath string) Lock {
-	l := &unixLock{
-		parentDirPath: parentDirPath,
-		pipePath:      path.Join(parentDirPath, name),
-		mutex:         &sync.Mutex{},
-		errs:          make(chan error),
-		stop:          make(chan chan struct{}),
+// TODO: This implementation can take longer than the specified timeout
+//  because each attempt to flock takes some time.
+func timedFlock(f *os.File, timeout time.Duration) error {
+	var err error
+	max := 10
+	ticker := time.NewTicker(timeout / time.Duration(max))
+	defer ticker.Stop()
+
+	for i := 0; i < max; i++ {
+		<-ticker.C
+		err = unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+		if err == nil {
+			return nil
+		}
 	}
 
-	close(l.stop)
-
-	return l
+	return err
 }
