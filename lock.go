@@ -63,7 +63,6 @@ type Acquirer interface {
 type defaultAcquirer struct {
 	acquireTimeout time.Duration
 	resource       string
-	unexpectedLoss chan error
 }
 
 func (o *defaultAcquirer) SetAcquireTimeout(timeout time.Duration) Acquirer {
