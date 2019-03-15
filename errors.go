@@ -2,7 +2,7 @@ package lock
 
 type ConfigureError struct {
 	reason     string
-	noLocation bool
+	noResource bool
 	notAbs     bool
 }
 
@@ -10,11 +10,11 @@ func (o *ConfigureError) Error() string {
 	return o.reason
 }
 
-func (o *ConfigureError) LocationNotSpecified() bool {
-	return o.noLocation
+func (o *ConfigureError) ResourceNotSpecified() bool {
+	return o.noResource
 }
 
-func (o *ConfigureError) LocationNotFullyQualified() bool {
+func (o *ConfigureError) PathNotFullyQualified() bool {
 	return o.notAbs
 }
 

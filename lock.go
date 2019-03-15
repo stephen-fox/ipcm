@@ -29,21 +29,24 @@ type Acquirer interface {
 	// the Lock.
 	SetAcquireTimeout(time.Duration) Acquirer
 
-	// SetLocation sets the well-known location of the Lock.
+	// SetResource sets the Lock's resource. A "resource" is an object
+	// that exists outside of the application which can be used as a mutex.
+	//
 	// New instances of an application must use the same argument
 	// when acquiring the Lock.
 	//
-	// On unix systems, the string must be a fully qualified file path.
+	// On unix systems, this must be a string representing a fully qualified
+	// file path.
 	// For example:
 	// 	/var/myapplication/lock
 	//
-	// On Windows, the string can consist of any character except
-	// backslash. For more information, refer to the 'CreateMutexW'
-	// API documentation:
+	// On Windows, this is a string representing the name of a mutex object.
+	// The string can consist of any character except backslash. For more
+	// information, refer to the 'CreateMutexW' API documentation:
 	// https://docs.microsoft.com/en-us/windows/desktop/api/synchapi/nf-synchapi-createmutexw
 	// For example:
 	// 	myapplication
-	SetLocation(string) Acquirer
+	SetResource(string) Acquirer
 
 	// Acquire acquires the Lock. A non-nil error is returned
 	// if the Lock cannot be acquired.
@@ -59,7 +62,7 @@ type Acquirer interface {
 
 type defaultAcquirer struct {
 	acquireTimeout time.Duration
-	location       string
+	resource       string
 	unexpectedLoss chan error
 }
 
@@ -68,8 +71,8 @@ func (o *defaultAcquirer) SetAcquireTimeout(timeout time.Duration) Acquirer {
 	return o
 }
 
-func (o *defaultAcquirer) SetLocation(location string) Acquirer {
-	o.location = location
+func (o *defaultAcquirer) SetResource(resource string) Acquirer {
+	o.resource = resource
 	return o
 }
 
@@ -78,11 +81,11 @@ func (o *defaultAcquirer) validateCommon() error {
 		o.acquireTimeout = acquireTimeout
 	}
 
-	if len(strings.TrimSpace(o.location)) == 0 {
+	if len(strings.TrimSpace(o.resource)) == 0 {
 		return &ConfigureError{
-			reason:     fmt.Sprintf("%s a well known location was not specified",
+			reason:     fmt.Sprintf("%s a well known resource was not specified",
 				configureErrPrefix),
-			noLocation: true,
+			noResource: true,
 		}
 	}
 

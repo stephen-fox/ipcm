@@ -47,7 +47,7 @@ func (o *defaultAcquirer) Acquire() (Lock, error) {
 		return nil, err
 	}
 
-	return timedCreateMutex(o.location, o.acquireTimeout)
+	return timedCreateMutex(o.resource, o.acquireTimeout)
 }
 
 func timedCreateMutex(name string, timeout time.Duration) (*windowsLock, error) {

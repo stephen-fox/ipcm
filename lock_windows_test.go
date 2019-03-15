@@ -13,7 +13,7 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 	lockName := randomAlphaString(10)
 
 	l, err := NewAcquirer().
-		SetLocation(lockName).
+		SetResource(lockName).
 		Acquire()
 	if err != nil {
 		t.Fatal(err.Error())
@@ -26,7 +26,7 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 	}()
 
 	o := testHarnessOptions{
-		lockLocation: lockName,
+		resource: lockName,
 	}
 
 	_, err = prepareTestHarness(env, o, t).CombinedOutput()
@@ -49,7 +49,7 @@ func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
 	acquireTimeout := 5 * time.Second
 	start := time.Now()
 	l, err := NewAcquirer().
-		SetLocation(lockName).
+		SetResource(lockName).
 		SetAcquireTimeout(acquireTimeout).
 		Acquire()
 	if err == nil {
@@ -76,7 +76,7 @@ func TestDefaultAcquirer_Acquire_AlreadyAcquired(t *testing.T) {
 	}()
 
 	l, err := NewAcquirer().
-		SetLocation(lockName).
+		SetResource(lockName).
 		Acquire()
 	if err == nil {
 		l.Release()

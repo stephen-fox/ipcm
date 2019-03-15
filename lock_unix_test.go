@@ -17,7 +17,7 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 	lockFilePath := path.Join(env.dataDirPath, lockFileName)
 
 	l, err := NewAcquirer().
-		SetLocation(lockFilePath).
+		SetResource(lockFilePath).
 		Acquire()
 	if err != nil {
 		t.Fatal(err.Error())
@@ -30,7 +30,7 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 	}()
 
 	o := testHarnessOptions{
-		lockLocation: lockFilePath,
+		resource: lockFilePath,
 	}
 
 	_, err = prepareTestHarness(env, o, t).CombinedOutput()
@@ -41,7 +41,7 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 
 func TestDefaultAcquirer_Acquire_RelativePath(t *testing.T) {
 	l, err := NewAcquirer().
-		SetLocation("not-fully-a-qualified-path").
+		SetResource("not-fully-a-qualified-path").
 		Acquire()
 	if err == nil {
 		l.Release()
@@ -63,7 +63,7 @@ func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
 	acquireTimeout := 5 * time.Second
 	start := time.Now()
 	l, err := NewAcquirer().
-		SetLocation(lockFilePath).
+		SetResource(lockFilePath).
 		SetAcquireTimeout(acquireTimeout).
 		Acquire()
 	if err == nil {
@@ -90,7 +90,7 @@ func TestDefaultAcquirer_Acquire_AlreadyAcquired(t *testing.T) {
 	}()
 
 	l, err := NewAcquirer().
-		SetLocation(lockFilePath).
+		SetResource(lockFilePath).
 		Acquire()
 	if err == nil {
 		l.Release()

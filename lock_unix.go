@@ -51,15 +51,15 @@ func (o *defaultAcquirer) Acquire() (Lock, error) {
 		return nil, err
 	}
 
-	if !path.IsAbs(o.location) || len(o.location) == 1 {
+	if !path.IsAbs(o.resource) || len(o.resource) == 1 {
 		return nil, &ConfigureError{
-			reason: fmt.Sprintf("%s the specified location is not a fully qualified file path - '%s'",
-				configureErrPrefix, o.location),
+			reason: fmt.Sprintf("%s the specified resource is not a fully qualified file path - '%s'",
+				configureErrPrefix, o.resource),
 			notAbs: true,
 		}
 	}
 
-	err = os.MkdirAll(path.Dir(o.location), dirMode)
+	err = os.MkdirAll(path.Dir(o.resource), dirMode)
 	if err != nil {
 		return nil, &AcquireError{
 			reason:  fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),
@@ -67,7 +67,7 @@ func (o *defaultAcquirer) Acquire() (Lock, error) {
 		}
 	}
 
-	f, err := os.OpenFile(o.location, os.O_RDONLY|os.O_CREATE, lockMode)
+	f, err := os.OpenFile(o.resource, os.O_RDONLY|os.O_CREATE, lockMode)
 	if err != nil {
 		return nil, &AcquireError{
 			reason:     fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),

@@ -16,16 +16,16 @@ type testEnv struct {
 }
 
 type testHarnessOptions struct {
-	lockLocation string
-	loopForever  bool
+	resource    string
+	loopForever bool
 }
 
 func (o testHarnessOptions) args(t *testing.T) []string {
-	if len(o.lockLocation) == 0 {
-		t.Fatal("lock location was not specified for test harness")
+	if len(o.resource) == 0 {
+		t.Fatal("lock resource was not specified for test harness")
 	}
 
-	args := []string{"-location", o.lockLocation}
+	args := []string{"-resource", o.resource}
 
 	if o.loopForever {
 		args = append(args, "-loop")
@@ -77,10 +77,10 @@ func prepareTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *
 	return exec.Command(testHarnessExePath, options.args(t)...)
 }
 
-func newProcessAcquiresLockAndIdles(env testEnv, lockLocation string, t *testing.T) *exec.Cmd {
+func newProcessAcquiresLockAndIdles(env testEnv, resource string, t *testing.T) *exec.Cmd {
 	o := testHarnessOptions{
-		lockLocation: lockLocation,
-		loopForever:  true,
+		resource:    resource,
+		loopForever: true,
 	}
 	testHarness := prepareTestHarness(env, o, t)
 
@@ -109,7 +109,8 @@ func newProcessAcquiresLockAndIdles(env testEnv, lockLocation string, t *testing
 		duration := time.Since(start)
 		if duration >= 5 * time.Second {
 			testHarness.Process.Kill()
-			t.Fatalf("test harness failed to acquire lock after %s", duration.String())
+			t.Fatalf("test harness failed to acquire lock after %s - output: %s",
+				duration.String(), stderr.String())
 		}
 		time.Sleep(1 * time.Second)
 	}

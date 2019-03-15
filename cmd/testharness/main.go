@@ -10,12 +10,12 @@ import (
 )
 
 func main() {
-	location := flag.String("location", "", "The lock's well-known location")
+	resource := flag.String("resource", "", "The lock's resource")
 	loopForever := flag.Bool("loop", false, "If specified, loop forever after acquiring the lock")
 	flag.Parse()
 
 	l, err := lock.NewAcquirer().
-		SetLocation(*location).
+		SetResource(*resource).
 		Acquire()
 	if err != nil {
 		log.Fatal(err.Error())
