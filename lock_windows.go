@@ -58,9 +58,10 @@ func timedCreateMutex(name string, timeout time.Duration) (*windowsLock, error) 
 
 	start := time.Now()
 
+	// TODO: Global should be an OS specific option.
+	mutexName := uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(globalPrefix + name)))
+
 	for time.Since(start) < timeout {
-		// TODO: Global should be an OS specific option.
-		mutexName := uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(globalPrefix + name)))
 		mutexHandle, _, err := api.createMutexProc.Call(0, 0, mutexName)
 		errNum := int(err.(windows.Errno))
 		if mutexHandle == 0 || errNum > 0 {
