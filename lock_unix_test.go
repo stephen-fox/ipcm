@@ -3,6 +3,7 @@
 package lock
 
 import (
+	"log"
 	"path"
 	"testing"
 	"time"
@@ -12,22 +13,17 @@ const (
 	lockFileName = "junk"
 )
 
-func TestDefaultAcquirer_Acquire(t *testing.T) {
+func TestNewMutex(t *testing.T) {
 	env := setupLockFileTestEnv(t)
 	lockFilePath := path.Join(env.dataDirPath, lockFileName)
 
-	l, err := NewAcquirer().
-		SetResource(lockFilePath).
-		Acquire()
+	m, err := NewMutex(lockFilePath)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	defer func() {
-		err := l.Release()
-		if err != nil {
-			t.Fatal(err.Error())
-		}
-	}()
+
+	m.Lock()
+	defer m.Unlock()
 
 	o := testHarnessOptions{
 		resource: lockFilePath,
@@ -39,17 +35,14 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 	}
 }
 
-func TestDefaultAcquirer_Acquire_RelativePath(t *testing.T) {
-	l, err := NewAcquirer().
-		SetResource("not-fully-a-qualified-path").
-		Acquire()
+func TestNewMutex_RelativePath(t *testing.T) {
+	_, err := NewMutex("not-fully-a-qualified-path")
 	if err == nil {
-		l.Release()
 		t.Fatal("acquisition of relative path did not fail")
 	}
 }
 
-func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
+func TestNewMutex_TimedTryLock(t *testing.T) {
 	env := setupLockFileTestEnv(t)
 	lockFilePath := path.Join(env.dataDirPath, lockFileName)
 	testHarness := newProcessAcquiresLockAndIdles(env, lockFilePath, t)
@@ -60,14 +53,15 @@ func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
 		}
 	}()
 
-	acquireTimeout := 5 * time.Second
+	m, err := NewMutex(lockFilePath)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
 	start := time.Now()
-	l, err := NewAcquirer().
-		SetResource(lockFilePath).
-		SetAcquireTimeout(acquireTimeout).
-		Acquire()
+	acquireTimeout := 5 * time.Second
+	err = m.TimedTryLock(acquireTimeout)
 	if err == nil {
-		l.Release()
 		t.Fatal("expected acquire attempt to fail")
 	}
 
@@ -78,7 +72,7 @@ func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
 	}
 }
 
-func TestDefaultAcquirer_Acquire_AlreadyAcquired(t *testing.T) {
+func TestNewMutex_TryLock(t *testing.T) {
 	env := setupLockFileTestEnv(t)
 	lockFilePath := path.Join(env.dataDirPath, lockFileName)
 	testHarness := newProcessAcquiresLockAndIdles(env, lockFilePath, t)
@@ -89,11 +83,13 @@ func TestDefaultAcquirer_Acquire_AlreadyAcquired(t *testing.T) {
 		}
 	}()
 
-	l, err := NewAcquirer().
-		SetResource(lockFilePath).
-		Acquire()
+	m, err := NewMutex(lockFilePath)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	err = m.TryLock()
 	if err == nil {
-		l.Release()
 		t.Fatal("expected acquire attempt to fail")
 	}
 }

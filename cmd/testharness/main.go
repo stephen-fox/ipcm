@@ -14,13 +14,16 @@ func main() {
 	loopForever := flag.Bool("loop", false, "If specified, loop forever after acquiring the lock")
 	flag.Parse()
 
-	l, err := lock.NewAcquirer().
-		SetResource(*resource).
-		Acquire()
+	m, err := lock.NewMutex(*resource)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	defer l.Release()
+
+	err = m.TryLock()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	defer m.Unlock()
 
 	if *loopForever {
 		for {

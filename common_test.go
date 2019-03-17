@@ -117,4 +117,3 @@ func newProcessAcquiresLockAndIdles(env testEnv, resource string, t *testing.T) 
 
 	return testHarness
 }
-

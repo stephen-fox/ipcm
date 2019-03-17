@@ -41,7 +41,7 @@ func (o *windowsLock) Release() error {
 	return nil
 }
 
-func (o *defaultAcquirer) Acquire() (Lock, error) {
+func (o *defaultAcquirer) Acquire() (Mutex, error) {
 	err := o.validateCommon()
 	if err != nil {
 		return nil, err
