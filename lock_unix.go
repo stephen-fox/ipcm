@@ -59,32 +59,45 @@ func (o *unixMutex) TryLock() error {
 
 func (o *unixMutex) TimedTryLock(timeout time.Duration) error {
 	start := time.Now()
-	locked := make(chan struct{})
-	unlock := make(chan bool)
+	signals := make(chan struct{})
 
 	go func() {
 		o.mutex.Lock()
-		locked <- struct{}{}
-		if <-unlock {
+
+		select {
+		case <-signals:
+			// Channel is closed - the main routine has
+			// given up.
 			o.mutex.Unlock()
+		default:
+			// Channel is still open, let the main routine know
+			// that we locked the mutex.
+			signals <- struct{}{}
+			// See what the main routine wants to do.
+			_, open := <-signals
+			if !open {
+				// The main routine closed the channel because it
+				// gave up.
+				o.mutex.Unlock()
+			}
 		}
 	}()
 
-	hitTimeout := time.After(timeout)
+	hitTimeout := time.NewTimer(timeout)
 
 	select {
-	case <-hitTimeout:
+	case <-hitTimeout.C:
 		break
-	case <-locked:
+	case <-signals:
+		hitTimeout.Stop()
 		elapsed := time.Since(start)
 		if elapsed < timeout && o.lockUnsafe(timeout - elapsed) {
+			signals <- struct{}{}
 			return nil
 		}
 	}
 
-	go func() {
-		unlock <- true
-	}()
+	close(signals)
 
 	return &AcquireError{
 		reason: fmt.Sprintf("%s lock took longer than %s",
