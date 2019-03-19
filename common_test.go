@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -17,7 +18,10 @@ type testEnv struct {
 
 type testHarnessOptions struct {
 	resource    string
+	once        bool
 	loopForever bool
+	ipcFilePath string
+	ipcValue    int
 }
 
 func (o testHarnessOptions) args(t *testing.T) []string {
@@ -27,8 +31,17 @@ func (o testHarnessOptions) args(t *testing.T) []string {
 
 	args := []string{"-resource", o.resource}
 
+	if o.once {
+		args = append(args, "-once")
+	}
+
 	if o.loopForever {
 		args = append(args, "-loop")
+	}
+
+	if len(o.ipcFilePath) > 0 {
+		args = append(args, "-ipcfile", o.ipcFilePath)
+		args = append(args, "-ipcvalue", strconv.Itoa(o.ipcValue))
 	}
 
 	return args
