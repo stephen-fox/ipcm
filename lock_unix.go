@@ -108,9 +108,7 @@ func (o *unixMutex) TimedTryLock(timeout time.Duration) error {
 
 func (o *unixMutex) lockUnsafe(timeout time.Duration) bool {
 	start := time.Now()
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+	sleep := 100 * time.Millisecond
 
 	for {
 		if timeout > 0 && time.Since(start) >= timeout {
@@ -120,7 +118,7 @@ func (o *unixMutex) lockUnsafe(timeout time.Duration) bool {
 		if _, statErr := o.file.Stat(); statErr != nil {
 			err := o.resetUnsafe()
 			if err != nil {
-				<-ticker.C
+				time.Sleep(sleep)
 				continue
 			}
 		}
@@ -130,7 +128,7 @@ func (o *unixMutex) lockUnsafe(timeout time.Duration) bool {
 			return true
 		}
 
-		<-ticker.C
+		time.Sleep(sleep)
 	}
 }
 
