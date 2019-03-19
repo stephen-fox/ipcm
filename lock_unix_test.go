@@ -182,6 +182,7 @@ func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
 		go func() {
 			m.Lock()
 			defer m.Unlock()
+			defer wg.Done()
 
 			raw, err := ioutil.ReadFile(ipcFilePath)
 			if err != nil {
@@ -198,8 +199,6 @@ func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to write to IPC test file - %s", err.Error())
 			}
-
-			wg.Done()
 		}()
 	}
 
