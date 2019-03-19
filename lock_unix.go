@@ -42,13 +42,7 @@ func (o *unixMutex) TryLock() error {
 		}
 	}
 
-	err := o.resetUnsafe()
-	if err != nil {
-		o.mutex.Unlock()
-		return err
-	}
-
-	err = unix.Flock(int(o.file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+	err := unix.Flock(int(o.file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 	if err != nil {
 		o.mutex.Unlock()
 		return err
