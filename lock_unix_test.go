@@ -48,10 +48,8 @@ func TestNewMutex_TimedTryLock(t *testing.T) {
 	lockFilePath := path.Join(env.dataDirPath, lockFileName)
 	testHarness := newProcessAcquiresLockAndIdles(env, lockFilePath, t)
 	defer func() {
-		err := testHarness.Process.Kill()
-		if err != nil {
-			t.Fatal(err.Error())
-		}
+		testHarness.Process.Kill()
+		testHarness.Wait()
 	}()
 
 	m, err := NewMutex(lockFilePath)
@@ -71,6 +69,15 @@ func TestNewMutex_TimedTryLock(t *testing.T) {
 		t.Fatalf("timeout only lasted %s when it should have taken at least %s",
 			duration.String(), acquireTimeout.String())
 	}
+
+	testHarness.Process.Kill()
+	testHarness.Wait()
+
+	err = m.TimedTryLock(acquireTimeout)
+	if err != nil {
+		t.Fatalf("try lock should have succeeded, but it failed - %s", err.Error())
+	}
+	m.Unlock()
 }
 
 func TestNewMutex_TryLock(t *testing.T) {
@@ -78,15 +85,13 @@ func TestNewMutex_TryLock(t *testing.T) {
 	lockFilePath := path.Join(env.dataDirPath, lockFileName)
 	testHarness := newProcessAcquiresLockAndIdles(env, lockFilePath, t)
 	defer func() {
-		err := testHarness.Process.Kill()
-		if err != nil {
-			t.Fatal(err.Error())
-		}
+		testHarness.Process.Kill()
+		testHarness.Wait()
 	}()
 
 	m, err := NewMutex(lockFilePath)
 	if err != nil {
-		log.Fatal(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	err = m.TryLock()
