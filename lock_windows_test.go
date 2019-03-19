@@ -27,6 +27,7 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 
 	o := testHarnessOptions{
 		resource: lockName,
+		once:     true,
 	}
 
 	_, err = prepareTestHarness(env, o, t).CombinedOutput()

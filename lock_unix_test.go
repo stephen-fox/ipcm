@@ -27,6 +27,7 @@ func TestNewMutex(t *testing.T) {
 
 	o := testHarnessOptions{
 		resource: lockFilePath,
+		once:     true,
 	}
 
 	_, err = prepareTestHarness(env, o, t).CombinedOutput()
