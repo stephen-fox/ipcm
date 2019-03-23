@@ -67,34 +67,6 @@ func TestNewMutex_TimedTryLock(t *testing.T) {
 	m.Unlock()
 }
 
-func TestNewMutex_TryLock(t *testing.T) {
-	env := setupTestEnv(t)
-	testHarness := newProcessAcquiresLockAndIdles(env, t)
-	defer func() {
-		testHarness.Process.Kill()
-		testHarness.Wait()
-	}()
-
-	m, err := NewMutex(env.resource)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	err = m.TryLock()
-	if err == nil {
-		t.Fatal("expected acquire attempt to fail")
-	}
-
-	testHarness.Process.Kill()
-	testHarness.Wait()
-
-	err = m.TryLock()
-	if err != nil {
-		t.Fatalf("lock attempt failed after killing holder - %s", err.Error())
-	}
-	m.Unlock()
-}
-
 func TestNewMutex_MultipleRoutines(t *testing.T) {
 	env := setupTestEnv(t)
 	m, err := NewMutex(env.resource)

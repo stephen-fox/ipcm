@@ -16,8 +16,6 @@ const (
 type Mutex interface {
 	Lock()
 
-	TryLock() error
-
 	TimedTryLock(time.Duration) error
 
 	Unlock()

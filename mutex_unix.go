@@ -26,29 +26,7 @@ type unixMutex struct {
 func (o *unixMutex) Lock() {
 	o.mutex.Lock()
 
-	if !o.lockUnsafe(-1) {
-		o.mutex.Unlock()
-	}
-}
-
-func (o *unixMutex) TryLock() error {
-	o.mutex.Lock()
-
-	if _, statErr := o.file.Stat(); statErr != nil {
-		err := o.resetFileUnsafe()
-		if err != nil {
-			o.mutex.Unlock()
-			return err
-		}
-	}
-
-	err := unix.Flock(int(o.file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
-	if err != nil {
-		o.mutex.Unlock()
-		return err
-	}
-
-	return nil
+	o.lockUnsafe(-1)
 }
 
 func (o *unixMutex) TimedTryLock(timeout time.Duration) error {

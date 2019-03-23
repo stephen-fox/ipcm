@@ -27,7 +27,7 @@ func main() {
 	}
 
 	if *once || *loopForever {
-		err = m.TryLock()
+		err = m.TimedTryLock(1 * time.Second)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
