@@ -2,6 +2,7 @@ package lock
 
 import (
 	"bytes"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -12,6 +13,7 @@ import (
 )
 
 type testEnv struct {
+	resource       string
 	dataDirPath    string
 	harnessSrcPath string
 }
@@ -47,7 +49,7 @@ func (o testHarnessOptions) args(t *testing.T) []string {
 	return args
 }
 
-func setupLockFileTestEnv(t *testing.T) testEnv {
+func setupTestEnv(t *testing.T) testEnv {
 	dirPath, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current working directory for testing - %s", err.Error())
@@ -65,7 +67,13 @@ func setupLockFileTestEnv(t *testing.T) testEnv {
 		t.Fatalf("failed to create test data directory - %s", err.Error())
 	}
 
+	resource := path.Join(testDataDir, "junk")
+	if runtime.GOOS == "windows" {
+		resource = randStringBytesRmndr(10)
+	}
+
 	return testEnv{
+		resource:       resource,
 		dataDirPath:    testDataDir,
 		harnessSrcPath: path.Join(dirPath, "cmd/testharness/main.go"),
 	}
@@ -90,9 +98,9 @@ func prepareTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *
 	return exec.Command(testHarnessExePath, options.args(t)...)
 }
 
-func newProcessAcquiresLockAndIdles(env testEnv, resource string, t *testing.T) *exec.Cmd {
+func newProcessAcquiresLockAndIdles(env testEnv, t *testing.T) *exec.Cmd {
 	o := testHarnessOptions{
-		resource:    resource,
+		resource:    env.resource,
 		loopForever: true,
 	}
 	testHarness := prepareTestHarness(env, o, t)
@@ -129,4 +137,17 @@ func newProcessAcquiresLockAndIdles(env testEnv, resource string, t *testing.T) 
 	}
 
 	return testHarness
+}
+
+// randStringBytesRmndr by "icza":
+// https://stackoverflow.com/a/31832326
+func randStringBytesRmndr(n int) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Int63() % int64(len(letterBytes))]
+	}
+
+	return string(b)
 }

@@ -3,14 +3,13 @@
 package lock
 
 import (
-	"math/rand"
 	"testing"
 	"time"
 )
 
 func TestDefaultAcquirer_Acquire(t *testing.T) {
-	env := setupLockFileTestEnv(t)
-	lockName := randomAlphaString(10)
+	env := setupTestEnv(t)
+	lockName := resourceName()
 
 	l, err := NewAcquirer().
 		SetResource(lockName).
@@ -37,8 +36,8 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 }
 
 func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
-	env := setupLockFileTestEnv(t)
-	lockName := randomAlphaString(10)
+	env := setupTestEnv(t)
+	lockName := resourceName()
 	testHarness := newProcessAcquiresLockAndIdles(env, lockName, t)
 	defer func() {
 		err := testHarness.Process.Kill()
@@ -66,8 +65,8 @@ func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
 }
 
 func TestDefaultAcquirer_Acquire_AlreadyAcquired(t *testing.T) {
-	env := setupLockFileTestEnv(t)
-	lockName := randomAlphaString(10)
+	env := setupTestEnv(t)
+	lockName := resourceName()
 	testHarness := newProcessAcquiresLockAndIdles(env, lockName, t)
 	defer func() {
 		err := testHarness.Process.Kill()
@@ -83,17 +82,4 @@ func TestDefaultAcquirer_Acquire_AlreadyAcquired(t *testing.T) {
 		l.Release()
 		t.Fatal("expected acquire attempt to fail")
 	}
-}
-
-// randomAlphaString by "icza":
-// https://stackoverflow.com/a/31832326
-func randomAlphaString(n int) string {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Int63() % int64(len(letterBytes))]
-	}
-
-	return string(b)
 }

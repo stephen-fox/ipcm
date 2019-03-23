@@ -1,5 +1,3 @@
-// +build !windows
-
 package lock
 
 import (
@@ -11,15 +9,10 @@ import (
 	"time"
 )
 
-const (
-	lockFileName = "junk"
-)
-
 func TestNewMutex(t *testing.T) {
-	env := setupLockFileTestEnv(t)
-	lockFilePath := path.Join(env.dataDirPath, lockFileName)
+	env := setupTestEnv(t)
 
-	m, err := NewMutex(lockFilePath)
+	m, err := NewMutex(env.resource)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -28,7 +21,7 @@ func TestNewMutex(t *testing.T) {
 	defer m.Unlock()
 
 	o := testHarnessOptions{
-		resource: lockFilePath,
+		resource: env.resource,
 		once:     true,
 	}
 
@@ -38,23 +31,15 @@ func TestNewMutex(t *testing.T) {
 	}
 }
 
-func TestNewMutex_RelativePath(t *testing.T) {
-	_, err := NewMutex("not-fully-a-qualified-path")
-	if err == nil {
-		t.Fatal("acquisition of relative path did not fail")
-	}
-}
-
 func TestNewMutex_TimedTryLock(t *testing.T) {
-	env := setupLockFileTestEnv(t)
-	lockFilePath := path.Join(env.dataDirPath, lockFileName)
-	testHarness := newProcessAcquiresLockAndIdles(env, lockFilePath, t)
+	env := setupTestEnv(t)
+	testHarness := newProcessAcquiresLockAndIdles(env, t)
 	defer func() {
 		testHarness.Process.Kill()
 		testHarness.Wait()
 	}()
 
-	m, err := NewMutex(lockFilePath)
+	m, err := NewMutex(env.resource)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -83,15 +68,14 @@ func TestNewMutex_TimedTryLock(t *testing.T) {
 }
 
 func TestNewMutex_TryLock(t *testing.T) {
-	env := setupLockFileTestEnv(t)
-	lockFilePath := path.Join(env.dataDirPath, lockFileName)
-	testHarness := newProcessAcquiresLockAndIdles(env, lockFilePath, t)
+	env := setupTestEnv(t)
+	testHarness := newProcessAcquiresLockAndIdles(env, t)
 	defer func() {
 		testHarness.Process.Kill()
 		testHarness.Wait()
 	}()
 
-	m, err := NewMutex(lockFilePath)
+	m, err := NewMutex(env.resource)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -112,9 +96,8 @@ func TestNewMutex_TryLock(t *testing.T) {
 }
 
 func TestNewMutex_MultipleRoutines(t *testing.T) {
-	env := setupLockFileTestEnv(t)
-	lockFilePath := path.Join(env.dataDirPath, lockFileName)
-	m, err := NewMutex(lockFilePath)
+	env := setupTestEnv(t)
+	m, err := NewMutex(env.resource)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -141,7 +124,7 @@ func TestNewMutex_MultipleRoutines(t *testing.T) {
 }
 
 func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
-	env := setupLockFileTestEnv(t)
+	env := setupTestEnv(t)
 
 	ipcFilePath := path.Join(env.dataDirPath, "whatever.txt")
 	err := ioutil.WriteFile(ipcFilePath, []byte{'0'}, 0600)
@@ -152,16 +135,15 @@ func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
 	const expected = 100
 	const half = expected / 2
 
-	lockFilePath := path.Join(env.dataDirPath, lockFileName)
 	options := testHarnessOptions{
-		resource:    lockFilePath,
+		resource:    env.resource,
 		ipcFilePath: ipcFilePath,
 		ipcValue:    half,
 	}
 
 	testHarness := prepareTestHarness(env, options, t)
 
-	m, err := NewMutex(lockFilePath)
+	m, err := NewMutex(env.resource)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
