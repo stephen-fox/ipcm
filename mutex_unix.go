@@ -35,7 +35,7 @@ func (o *unixMutex) TryLock() error {
 	o.mutex.Lock()
 
 	if _, statErr := o.file.Stat(); statErr != nil {
-		err := o.resetUnsafe()
+		err := o.resetFileUnsafe()
 		if err != nil {
 			o.mutex.Unlock()
 			return err
@@ -110,7 +110,7 @@ func (o *unixMutex) lockUnsafe(timeout time.Duration) bool {
 		}
 
 		if _, statErr := o.file.Stat(); statErr != nil {
-			err := o.resetUnsafe()
+			err := o.resetFileUnsafe()
 			if err != nil {
 				time.Sleep(sleep)
 				continue
@@ -126,7 +126,7 @@ func (o *unixMutex) lockUnsafe(timeout time.Duration) bool {
 	}
 }
 
-func (o *unixMutex) resetUnsafe() error {
+func (o *unixMutex) resetFileUnsafe() error {
 	if o.file != nil {
 		o.file.Close()
 	}
@@ -192,7 +192,7 @@ func NewMutex(resourcePath string) (Mutex, error) {
 		path:  resourcePath,
 	}
 
-	err = mu.resetUnsafe()
+	err = mu.resetFileUnsafe()
 	if err != nil {
 		return nil, err
 	}
