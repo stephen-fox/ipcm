@@ -7,9 +7,9 @@ import (
 )
 
 const (
-	configureErrPrefix    = "failed to configure lock -"
-	unableToCreatePrefix  = "failed to create lock -"
-	unableToAcquirePrefix = "failed to acquire lock -"
+	configureErrPrefix    = "failed to configure mutex -"
+	unableToCreatePrefix  = "failed to create mutex -"
+	unableToAcquirePrefix = "failed to acquire mutex -"
 )
 
 // Mutex is (...).
