@@ -23,7 +23,6 @@ func TestNewMutex(t *testing.T) {
 
 	o := testHarnessOptions{
 		resource: env.resource,
-		once:     true,
 	}
 
 	_, err = compileTestHarness(env, o, t).CombinedOutput()

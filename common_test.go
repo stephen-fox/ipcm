@@ -38,10 +38,6 @@ func (o testHarnessOptions) args(t *testing.T) []string {
 
 	args := []string{"-resource", o.resource}
 
-	if o.once {
-		args = append(args, "-once")
-	}
-
 	if o.loopForever {
 		args = append(args, "-loop")
 	}

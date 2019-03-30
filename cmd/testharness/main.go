@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -14,77 +13,91 @@ import (
 )
 
 func main() {
-	resource := flag.String("resource", "", "The lock's resource")
-	once := flag.Bool("once", false, "Only lock once")
-	loopForever := flag.Bool("loop", false, "Loop forever after acquiring the lock")
+	resource := flag.String("resource", "", "The mutex's resource")
+	loopForever := flag.Bool("loop", false, "Loop forever after acquiring the mutex")
 	ipcTestPath := flag.String("ipcfile", "", "A file for testing IPC")
 	ipcValue := flag.Int("ipcvalue", 0, "The number of times to increment the IPC value by")
+
 	flag.Parse()
 
 	m, err := lock.NewMutex(*resource)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatalln(err.Error())
 	}
 
-	if *once || *loopForever {
-		err = m.TimedTryLock(1 * time.Second)
+	if len(*ipcTestPath) > 0 {
+		err := doInterProcessCommunicationTest(m, *ipcTestPath, *ipcValue)
 		if err != nil {
-			log.Fatal(err.Error())
+			log.Fatalln(err.Error())
 		}
-		defer m.Unlock()
+
+		return
 	}
+
+	err = m.TimedTryLock(1 * time.Second)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	defer m.Unlock()
 
 	if *loopForever {
 		fmt.Println("ready")
+		// TODO: Use empty 'select' call?
 		for {
 			time.Sleep(1 * time.Second)
 		}
 	}
+}
 
-	if len(*ipcTestPath) > 0 {
-		if *ipcValue < 1 {
-			log.Fatal("ipc value must be greater than 0")
-		}
-
-		wg := &sync.WaitGroup{}
-		wg.Add(*ipcValue)
-
-		errs := make(chan error)
-		for i := 0; i < *ipcValue; i++ {
-			go func() {
-				m.Lock()
-				defer m.Unlock()
-				defer wg.Done()
-
-				raw, err := ioutil.ReadFile(*ipcTestPath)
-				if err != nil {
-					errs <- errors.New("failed to read IPC test file - " + err.Error())
-					return
-				}
-
-				value, err := strconv.Atoi(string(raw))
-				if err != nil {
-					errs <- errors.New("failed to read integer from file - " + err.Error())
-					return
-				}
-
-				value++
-				err = ioutil.WriteFile(*ipcTestPath, []byte(strconv.Itoa(value)), 0600)
-				if err != nil {
-					errs <- errors.New("failed to write to IPC test file - " + err.Error())
-					return
-				}
-			}()
-		}
-
-		wg.Wait()
-
-		select {
-		case err := <-errs:
-			if err != nil {
-				log.Fatalf("failed to execute IPC test - %s", err.Error())
-			}
-		default:
-		}
+func doInterProcessCommunicationTest(m lock.Mutex, ipcValueFilePath string, maxValue int) error {
+	if maxValue < 1 {
+		return fmt.Errorf("ipc value must be greater than 0")
 	}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(maxValue)
+
+	errs := make(chan error)
+	for i := 0; i < maxValue; i++ {
+		go func() {
+			m.Lock()
+			defer m.Unlock()
+			defer wg.Done()
+
+			raw, err := ioutil.ReadFile(ipcValueFilePath)
+			if err != nil {
+				errs <- fmt.Errorf("failed to read ipc test file - " + err.Error())
+				return
+			}
+
+			value, err := strconv.Atoi(string(raw))
+			if err != nil {
+				errs <- fmt.Errorf("failed to parse ipc file's value - " + err.Error())
+				return
+			}
+
+			value++
+			err = ioutil.WriteFile(ipcValueFilePath, []byte(strconv.Itoa(value)), 0600)
+			if err != nil {
+				errs <- fmt.Errorf("failed to write to ipc test file - " + err.Error())
+				return
+			}
+		}()
+	}
+
+	rejoin := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(rejoin)
+	}()
+
+	select {
+	case err := <-errs:
+		if err != nil {
+			return fmt.Errorf("failed to execute IPC test - %s", err.Error())
+		}
+	case <-rejoin:
+	}
+
+	return nil
 }
