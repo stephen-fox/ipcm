@@ -20,7 +20,7 @@ import (
 
 func main() {
 	resource := flag.String("resource", "", "The mutex's resource")
-	loopForever := flag.Bool("loop", false, "Loop forever after acquiring the mutex")
+	loopForever := flag.Bool("loop", false, "Loop forever after locking the mutex")
 	ipcTestPath := flag.String("ipcfile", "", "A file for testing IPC")
 	ipcValue := flag.Int("ipcvalue", 0, "The number of times to increment the IPC value by")
 
