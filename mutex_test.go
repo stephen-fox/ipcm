@@ -98,7 +98,7 @@ func TestNewMutex_MultipleRoutines(t *testing.T) {
 func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
 	env := setupTestEnv(t)
 
-	ipcFilePath := path.Join(env.dataDirPath, "whatever.txt")
+	ipcFilePath := path.Join(env.dataDirPath, "ipc-test.txt")
 	err := ioutil.WriteFile(ipcFilePath, []byte{'0'}, 0600)
 	if err != nil {
 		t.Fatal(err.Error())
