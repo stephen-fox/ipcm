@@ -27,7 +27,7 @@ func TestNewMutex(t *testing.T) {
 
 	_, err = compileTestHarness(env, o, t).CombinedOutput()
 	if err == nil {
-		t.Fatal("expected test harness lock acquire to fail, but it did not")
+		t.Fatal("test harness lock should have failed")
 	}
 }
 
@@ -45,24 +45,24 @@ func TestNewMutex_TimedTryLock(t *testing.T) {
 	}
 
 	start := time.Now()
-	acquireTimeout := 5 * time.Second
-	err = m.TimedTryLock(acquireTimeout)
+	lockTimeout := 5 * time.Second
+	err = m.TimedTryLock(lockTimeout)
 	if err == nil {
-		t.Fatal("expected acquire attempt to fail")
+		t.Fatal("lock attempt should have failed")
 	}
 
 	duration := time.Since(start)
-	if duration < acquireTimeout {
-		t.Fatalf("timeout only lasted %s when it should have taken at least %s",
-			duration.String(), acquireTimeout.String())
+	if duration < lockTimeout {
+		t.Fatalf("lock timeout only lasted %s when it should have taken at least %s",
+			duration.String(), lockTimeout.String())
 	}
 
 	testHarness.Process.Kill()
 	testHarness.Wait()
 
-	err = m.TimedTryLock(acquireTimeout)
+	err = m.TimedTryLock(lockTimeout)
 	if err != nil {
-		t.Fatalf("try lock should have succeeded, but it failed - %s", err.Error())
+		t.Fatalf("lock should have succeeded, but it failed - %s", err.Error())
 	}
 	m.Unlock()
 }
