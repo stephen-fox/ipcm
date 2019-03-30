@@ -42,7 +42,6 @@ func main() {
 
 	if *loopForever {
 		fmt.Println("ready")
-		// TODO: Use empty 'select' call?
 		for {
 			time.Sleep(1 * time.Second)
 		}
