@@ -12,6 +12,12 @@ import (
 	"github.com/stephen-fox/lock"
 )
 
+// This application is a test harness for usage with the "unit" tests. In order
+// to truly test IPC mutual exclusion, we need more than one process.
+// That is what this application is for :)
+//
+// Please refer to the unit tests for further documentation.
+
 func main() {
 	resource := flag.String("resource", "", "The mutex's resource")
 	loopForever := flag.Bool("loop", false, "Loop forever after acquiring the mutex")
