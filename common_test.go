@@ -24,16 +24,25 @@ type testEnv struct {
 type testHarnessOptions struct {
 	// resource is the external resource to manipulate (e.g., a
 	// fle path).
-	resource    string
-	once        bool
+	resource string
+
+	// loopForever, when true, will make the test harness loop forever.
 	loopForever bool
+
+	// ipcFilePath is the file to write inter-process communication
+	// values to. When this is specified, the test harness will run
+	// in the ipc test mode. This means the test harness will spawn
+	// n go routines that will increment an integer in the ipc file.
 	ipcFilePath string
-	ipcValue    int
+
+	// ipcValue is the maximum amount of times the test harness should
+	// increment the ipc test value.
+	ipcValue int
 }
 
 func (o testHarnessOptions) args(t *testing.T) []string {
 	if len(o.resource) == 0 {
-		t.Fatal("lock resource was not specified for test harness")
+		t.Fatal("mutex resource was not specified for test harness")
 	}
 
 	args := []string{"-resource", o.resource}
@@ -85,6 +94,8 @@ func setupTestEnv(t *testing.T) testEnv {
 // compileTestHarness compiles the test harness application and returns
 // an *exec.Cmd representing the test harness with the provided
 // testHarnessOptions. The returned Cmd must be started by the caller.
+//
+// The current unit test will fail if any of these operations fail.
 func compileTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *exec.Cmd {
 	testHarnessExePath := path.Join(env.dataDirPath, "testharness")
 	if runtime.GOOS == "windows" {
@@ -104,10 +115,12 @@ func compileTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *
 	return exec.Command(testHarnessExePath, options.args(t)...)
 }
 
-// newProcessLocksAndIdles compiles and then starts the test harness.
-// The test harness will acquire the mutex and then idle forever.
+// newProcessLocksAndIdles compiles and starts the test harness, at which
+// point it will acquire the mutex and then idle forever.
 //
-// Callers are responsible for the lifecycle of the test harness.
+// The current unit test will fail if any of these operations fail.
+//
+// Callers are responsible for the lifecycle of the returned process.
 func newProcessLocksAndIdles(env testEnv, t *testing.T) *exec.Cmd {
 	o := testHarnessOptions{
 		resource:    env.resource,
@@ -116,9 +129,9 @@ func newProcessLocksAndIdles(env testEnv, t *testing.T) *exec.Cmd {
 	testHarness := compileTestHarness(env, o, t)
 
 	// Need to start test harness async. We need to be able to
-	// test exactly when the harness acquires the lock, otherwise
+	// test exactly when the harness acquires the mutex, otherwise
 	// there is a race condition between the harness and the unit
-	// test when acquiring the lock.
+	// test when acquiring the mutex.
 	stdout := bytes.NewBuffer(nil)
 	testHarness.Stdout = stdout
 	stderr := bytes.NewBuffer(nil)
@@ -126,7 +139,7 @@ func newProcessLocksAndIdles(env testEnv, t *testing.T) *exec.Cmd {
 
 	err := testHarness.Start()
 	if err != nil {
-		t.Fatalf("test harness lock failed - %s", err.Error())
+		t.Fatalf("test harness failed to start - %s", err.Error())
 	}
 
 	start := time.Now()
@@ -140,7 +153,7 @@ func newProcessLocksAndIdles(env testEnv, t *testing.T) *exec.Cmd {
 		duration := time.Since(start)
 		if duration >= 5 * time.Second {
 			testHarness.Process.Kill()
-			t.Fatalf("test harness failed to acquire lock after %s - output: %s",
+			t.Fatalf("test harness failed to lock the mutex after %s - output: %s",
 				duration.String(), stderr.String())
 		}
 		time.Sleep(1 * time.Second)
