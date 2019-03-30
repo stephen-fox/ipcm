@@ -88,8 +88,7 @@ func setupTestEnv(t *testing.T) testEnv {
 
 // compileTestHarness compiles the test harness application and returns
 // an *exec.Cmd representing the test harness with the provided
-// testHarnessOptions. The returned Command is not running and must be
-// started by the caller.
+// testHarnessOptions. The returned Cmd must be started by the caller.
 func compileTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *exec.Cmd {
 	testHarnessExePath := path.Join(env.dataDirPath, "testharness")
 	if runtime.GOOS == "windows" {
