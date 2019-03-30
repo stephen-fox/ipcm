@@ -79,9 +79,10 @@ func setupTestEnv(t *testing.T) testEnv {
 		t.Fatalf("failed to create test data directory - %s", err.Error())
 	}
 
-	resource := path.Join(testDataDir, "junk")
+	name := randStringBytesRmndr(10)
+	resource := path.Join(testDataDir, name)
 	if runtime.GOOS == "windows" {
-		resource = randStringBytesRmndr(10)
+		resource = name
 	}
 
 	return testEnv{
