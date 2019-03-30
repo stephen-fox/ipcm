@@ -12,13 +12,18 @@ import (
 	"time"
 )
 
+// testEnv contains information about the test environment.
 type testEnv struct {
 	resource       string
 	dataDirPath    string
 	harnessSrcPath string
 }
 
+// testHarnessOptions represents all of the possible options available when
+// running the test harness.
 type testHarnessOptions struct {
+	// resource is the external resource to manipulate (e.g., a
+	// fle path).
 	resource    string
 	once        bool
 	loopForever bool
@@ -49,6 +54,8 @@ func (o testHarnessOptions) args(t *testing.T) []string {
 	return args
 }
 
+// setupTestEnv creates the test data directory and gets information about
+// the repository.
 func setupTestEnv(t *testing.T) testEnv {
 	dirPath, err := os.Getwd()
 	if err != nil {
@@ -79,7 +86,11 @@ func setupTestEnv(t *testing.T) testEnv {
 	}
 }
 
-func prepareTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *exec.Cmd {
+// compileTestHarness compiles the test harness application and returns
+// an *exec.Cmd representing the test harness with the provided
+// testHarnessOptions. The returned Command is not running and must be
+// started by the caller.
+func compileTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *exec.Cmd {
 	testHarnessExePath := path.Join(env.dataDirPath, "testharness")
 	if runtime.GOOS == "windows" {
 		testHarnessExePath = testHarnessExePath + ".exe"
@@ -98,12 +109,16 @@ func prepareTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *
 	return exec.Command(testHarnessExePath, options.args(t)...)
 }
 
-func newProcessAcquiresLockAndIdles(env testEnv, t *testing.T) *exec.Cmd {
+// newProcessLocksAndIdles compiles and then starts the test harness.
+// The test harness will acquire the mutex and then idle forever.
+//
+// Callers are responsible for the lifecycle of the test harness.
+func newProcessLocksAndIdles(env testEnv, t *testing.T) *exec.Cmd {
 	o := testHarnessOptions{
 		resource:    env.resource,
 		loopForever: true,
 	}
-	testHarness := prepareTestHarness(env, o, t)
+	testHarness := compileTestHarness(env, o, t)
 
 	// Need to start test harness async. We need to be able to
 	// test exactly when the harness acquires the lock, otherwise

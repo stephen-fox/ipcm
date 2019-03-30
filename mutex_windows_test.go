@@ -29,7 +29,7 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 		once:     true,
 	}
 
-	_, err = prepareTestHarness(env, o, t).CombinedOutput()
+	_, err = compileTestHarness(env, o, t).CombinedOutput()
 	if err == nil {
 		t.Fatal("expected test harness lock acquire to fail, but it did not")
 	}
@@ -38,7 +38,7 @@ func TestDefaultAcquirer_Acquire(t *testing.T) {
 func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
 	env := setupTestEnv(t)
 	lockName := resourceName()
-	testHarness := newProcessAcquiresLockAndIdles(env, lockName, t)
+	testHarness := newProcessLocksAndIdles(env, lockName, t)
 	defer func() {
 		err := testHarness.Process.Kill()
 		if err != nil {
@@ -67,7 +67,7 @@ func TestDefaultAcquirer_Acquire_CustomTimeout(t *testing.T) {
 func TestDefaultAcquirer_Acquire_AlreadyAcquired(t *testing.T) {
 	env := setupTestEnv(t)
 	lockName := resourceName()
-	testHarness := newProcessAcquiresLockAndIdles(env, lockName, t)
+	testHarness := newProcessLocksAndIdles(env, lockName, t)
 	defer func() {
 		err := testHarness.Process.Kill()
 		if err != nil {

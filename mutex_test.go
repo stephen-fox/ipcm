@@ -1,6 +1,7 @@
 package lock
 
 import (
+	"bytes"
 	"io/ioutil"
 	"path"
 	"strconv"
@@ -25,7 +26,7 @@ func TestNewMutex(t *testing.T) {
 		once:     true,
 	}
 
-	_, err = prepareTestHarness(env, o, t).CombinedOutput()
+	_, err = compileTestHarness(env, o, t).CombinedOutput()
 	if err == nil {
 		t.Fatal("expected test harness lock acquire to fail, but it did not")
 	}
@@ -33,7 +34,7 @@ func TestNewMutex(t *testing.T) {
 
 func TestNewMutex_TimedTryLock(t *testing.T) {
 	env := setupTestEnv(t)
-	testHarness := newProcessAcquiresLockAndIdles(env, t)
+	testHarness := newProcessLocksAndIdles(env, t)
 	defer func() {
 		testHarness.Process.Kill()
 		testHarness.Wait()
@@ -113,7 +114,9 @@ func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
 		ipcValue:    half,
 	}
 
-	testHarness := prepareTestHarness(env, options, t)
+	testHarness := compileTestHarness(env, options, t)
+	stderr := bytes.NewBuffer(nil)
+	testHarness.Stderr = stderr
 
 	m, err := NewMutex(env.resource)
 	if err != nil {
@@ -122,7 +125,8 @@ func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
 
 	err = testHarness.Start()
 	if err != nil {
-		t.Fatalf("failed to start test hanress - %s", err.Error())
+		t.Fatalf("failed to start test hanress - %s - output: '%s'",
+			err.Error(), stderr.String())
 	}
 	defer func() {
 		testHarness.Process.Kill()
@@ -158,7 +162,8 @@ func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
 
 	err = testHarness.Wait()
 	if err != nil {
-		t.Fatalf("failed to wait for test harness - %s", err.Error())
+		t.Fatalf("failed to wait for test harness - %s - output: '%s'",
+			err.Error(), stderr.String())
 	}
 
 	wg.Wait()
