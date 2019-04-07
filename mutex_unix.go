@@ -26,59 +26,29 @@ type unixMutex struct {
 func (o *unixMutex) Lock() {
 	o.mutex.Lock()
 
-	o.lockUnsafe(-1)
+	o.lockOsMutexUnsafe(-1)
 }
 
 func (o *unixMutex) TimedTryLock(timeout time.Duration) error {
-	start := time.Now()
-	signals := make(chan struct{})
-
-	go func() {
-		o.mutex.Lock()
-
-		select {
-		case <-signals:
-			// Channel is closed - the main routine has
-			// given up.
-			o.mutex.Unlock()
-		default:
-			// Channel is still open, let the main routine know
-			// that we locked the mutex.
-			signals <- struct{}{}
-			// See what the main routine wants to do.
-			_, open := <-signals
-			if !open {
-				// The main routine closed the channel because it
-				// gave up.
-				o.mutex.Unlock()
-			}
-		}
-	}()
-
-	hitTimeout := time.NewTimer(timeout)
-
-	select {
-	case <-hitTimeout.C:
-		break
-	case <-signals:
-		hitTimeout.Stop()
-		elapsed := time.Since(start)
-		if elapsed < timeout && o.lockUnsafe(timeout - elapsed) {
-			signals <- struct{}{}
-			return nil
-		}
+	remaining, err := timedSyncMutexLock(o.mutex, timeout)
+	if err != nil {
+		return err
 	}
 
-	close(signals)
+	if o.lockOsMutexUnsafe(remaining) {
+		return nil
+	}
+
+	o.mutex.Unlock()
 
 	return &AcquireError{
-		reason: fmt.Sprintf("%s lock took longer than %s",
+		reason: fmt.Sprintf("%s system flock took longer than %s",
 			unableToAcquirePrefix, timeout.String()),
 		// TODO: bool.
 	}
 }
 
-func (o *unixMutex) lockUnsafe(timeout time.Duration) bool {
+func (o *unixMutex) lockOsMutexUnsafe(timeout time.Duration) bool {
 	start := time.Now()
 	sleep := 100 * time.Millisecond
 
