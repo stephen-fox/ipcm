@@ -2,6 +2,7 @@ package lock
 
 import (
 	"fmt"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -16,89 +17,160 @@ const (
 	globalPrefix        = "Global\\"
 )
 
-type windowsLock struct {
-	kernel32    *windows.LazyDLL
+// TODO: Close handle?
+type windowsMutex struct {
+	resource    string
+	mutex       *sync.Mutex
+	winMutexApi *windowsMutexApi
 	mutexHandle uintptr
 }
 
-func (o *windowsLock) Release() error {
-	releaseMutexProc, err := getProcedure(releaseMutex, o.kernel32)
+func (o *windowsMutex) Lock() {
+	o.mutex.Lock()
+
+	o.lockOsMutexUnsafe(infiniteOsMutexLockTimeout)
+}
+
+func (o *windowsMutex) TimedTryLock(timeout time.Duration) error {
+	remaining, err := timedSyncMutexLock(o.mutex, timeout)
 	if err != nil {
 		return err
 	}
 
-	_, _, err = releaseMutexProc.Call(o.mutexHandle)
-	errNum := int(err.(windows.Errno))
-	if errNum > 0 {
-		return fmt.Errorf("got return code %d - %s", errNum, err.Error())
-	}
-
-	err = windows.CloseHandle(windows.Handle(o.mutexHandle))
+	err = o.lockOsMutexUnsafe(remaining)
 	if err != nil {
+		o.mutex.Unlock()
 		return err
 	}
 
 	return nil
 }
 
-func (o *defaultAcquirer) Acquire() (Mutex, error) {
-	err := o.validateCommon()
-	if err != nil {
-		return nil, err
-	}
-
-	return timedCreateMutex(o.resource, o.acquireTimeout)
-}
-
-func timedCreateMutex(name string, timeout time.Duration) (*windowsLock, error) {
-	api, err := loadCreateMutexApi()
-	if err != nil {
-		return nil, err
-	}
-
+func (o *windowsMutex) lockOsMutexUnsafe(timeout time.Duration) error {
 	start := time.Now()
 
 	// TODO: Global should be an OS specific option.
-	mutexName := uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(globalPrefix + name)))
+	// TODO: Should this be stored in the object as a field?
+	mutexId := uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(globalPrefix + o.resource)))
 
-	for time.Since(start) < timeout {
-		mutexHandle, _, err := api.createMutexProc.Call(0, 0, mutexName)
-		errNum := int(err.(windows.Errno))
-		if mutexHandle == 0 || errNum > 0 {
-			time.Sleep(500 * time.Millisecond)
-			continue
+	mutexHandle, _, err := o.winMutexApi.createMutex.Call(0, 0, mutexId)
+	createMutexErrNum := int(err.(windows.Errno))
+	switch err.(windows.Errno) {
+	case 0, windows.ERROR_ALREADY_EXISTS:
+		// If the mutex already exists, the Windows API still returns
+		// a handle to the mutex.
+		break
+	default:
+		if timeout == infiniteOsMutexLockTimeout {
+			return o.lockOsMutexUnsafe(timeout)
 		}
+		return &AcquireError{
+			reason:     fmt.Sprintf("%s got return code %d - %s",
+				unableToCreatePrefix, createMutexErrNum, err.Error()),
+			createFail: true,
+		}
+	}
 
-		_, _, err = api.waitForSingleObjectProc.Call(mutexHandle, uintptr(timeout.Seconds() * 1000))
-		errNum = int(err.(windows.Errno))
-		if errNum > 0 {
-			return nil, &AcquireError{
+	// Per the 'WaitForSingleObject' Windows API doc, the waitResult will
+	// be a non-zero value if a failure occurs. Therefore, we can treat
+	// the waitResult as an error condition. This appears to be a break
+	// in the Windows API pattern:
+	//  https://docs.microsoft.com/en-us/windows/desktop/api/synchapi/nf-synchapi-waitforsingleobject#return-value
+	waitResult, _, err := o.winMutexApi.waitForSingleObject.Call(mutexHandle, uintptr(timeout.Seconds() * 1000))
+	if timeout == infiniteOsMutexLockTimeout && waitResult != 0 {
+		return o.lockOsMutexUnsafe(infiniteOsMutexLockTimeout)
+	}
+
+	switch waitResult {
+	case windows.WAIT_OBJECT_0:
+		o.mutexHandle = mutexHandle
+		return nil
+	case windows.WAIT_ABANDONED:
+		return o.lockOsMutexUnsafe(timeout - time.Since(start))
+	case windows.WAIT_TIMEOUT:
+		return &AcquireError{
+			reason: fmt.Sprintf("%s exceeded wait timeout of %s",
+				unableToAcquirePrefix, timeout.String()),
+			inUse:  true,
+		}
+	case windows.WAIT_FAILED:
+		waitForErrNum := int(err.(windows.Errno))
+		if waitForErrNum != 0 {
+			return &AcquireError{
 				reason: fmt.Sprintf("%s got return code %d - %s",
-					unableToAcquirePrefix, int(errNum), err.Error()),
+					unableToAcquirePrefix, waitForErrNum, err.Error()),
 				inUse:  true,
 			}
 		}
-
-		return &windowsLock{
-			kernel32:    api.kernel32,
-			mutexHandle: mutexHandle,
-		}, nil
 	}
 
-	return nil, &AcquireError{
-		reason: fmt.Sprintf("%s failed to acquire lock after %s",
-			unableToAcquirePrefix, timeout.String()),
+	return &AcquireError{
+		reason: fmt.Sprintf("%s system mutex wait failed, got return code %d",
+			unableToAcquirePrefix, waitResult),
 		inUse:  true,
 	}
 }
 
-type createMutexApi struct {
-	kernel32                *windows.LazyDLL
-	createMutexProc         *windows.LazyProc
-	waitForSingleObjectProc *windows.LazyProc
+func (o *windowsMutex) Unlock() {
+	o.unlockUnsafe()
+
+	o.mutex.Unlock()
 }
 
-func loadCreateMutexApi() (*createMutexApi, error) {
+func (o *windowsMutex) unlockUnsafe() error {
+	_, _, err := o.winMutexApi.release.Call(o.mutexHandle)
+	errNum := int(err.(windows.Errno))
+	if errNum > 0 {
+		return fmt.Errorf("got return code %d - %s", errNum, err.Error())
+	}
+
+	return nil
+}
+
+type windowsMutexApi struct {
+	kernel32            *windows.LazyDLL
+	createMutex         *windows.LazyProc
+	waitForSingleObject *windows.LazyProc
+	release             *windows.LazyProc
+}
+
+// NewMutex creates a new mutex using an object that exists outside of
+// the application.
+//
+// New instances of an application must use the same argument when acquiring
+// the Mutex.
+//
+// On Windows systems, this must be a string representing the name of a mutex
+// object. The string can consist of any character except backslash. For more
+// information, refer to the 'CreateMutexW' API documentation:
+//  https://docs.microsoft.com/en-us/windows/desktop/api/synchapi/nf-synchapi-createmutexw
+// For example:
+// 	myapplication
+//
+// Be advised that Windows requires the Mutex be unlocked or released by the
+// same thread that originally locked the Mutex. Please review
+// 'runtime.LockOSThread()' for more information.
+func NewMutex(resourceName string) (Mutex, error) {
+	err := validateResourceCommon(resourceName)
+	if err != nil {
+		return nil, err
+	}
+
+	winApi, err := loadWindowsMutexApi()
+	if err != nil {
+		return nil, err
+	}
+
+	mu := &windowsMutex{
+		mutex:       &sync.Mutex{},
+		resource:    resourceName,
+		winMutexApi: winApi,
+	}
+
+	return mu, nil
+}
+
+func loadWindowsMutexApi() (*windowsMutexApi, error) {
 	kernel32 := windows.NewLazyDLL(kernel32Name)
 	if kernel32 == nil {
 		return nil, &AcquireError{
@@ -126,10 +198,20 @@ func loadCreateMutexApi() (*createMutexApi, error) {
 		}
 	}
 
-	return &createMutexApi{
-		kernel32:                kernel32,
-		createMutexProc:         createMutexProc,
-		waitForSingleObjectProc: waitForSingleObjectProc,
+	releaseMutexProc, err := getProcedure(releaseMutex, kernel32)
+	if err != nil {
+		return nil, &AcquireError{
+			reason:   fmt.Sprintf("%s - %s",
+				unableToCreatePrefix, err.Error()),
+			procFail: true,
+		}
+	}
+
+	return &windowsMutexApi{
+		kernel32:            kernel32,
+		createMutex:         createMutexProc,
+		waitForSingleObject: waitForSingleObjectProc,
+		release:             releaseMutexProc,
 	}, nil
 }
 

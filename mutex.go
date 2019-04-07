@@ -3,6 +3,7 @@ package lock
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -10,6 +11,8 @@ const (
 	configureErrPrefix    = "failed to configure mutex -"
 	unableToCreatePrefix  = "failed to create mutex -"
 	unableToAcquirePrefix = "failed to acquire mutex -"
+
+	infiniteOsMutexLockTimeout time.Duration = -1
 )
 
 // Mutex is (...).
@@ -64,4 +67,53 @@ func validateResourceCommon(resource string) error {
 	}
 
 	return nil
+}
+
+// timedSyncMutexLock attempts to lock the supplied *sync.Mutex within the
+// specified timeout. If successful, the function returns the remaining
+// timeout. A non-nil error is returned if the lock attempt exceeds
+// the timeout.
+func timedSyncMutexLock(mutex *sync.Mutex, timeout time.Duration) (time.Duration, error) {
+	start := time.Now()
+	mutexControl := make(chan struct{})
+
+	go func() {
+		mutex.Lock()
+
+		select {
+		case <-mutexControl:
+			// Channel is closed - the main routine has
+			// given up.
+			mutex.Unlock()
+		default:
+			// Channel is still open, let the main routine know
+			// that we locked the mutex.
+			mutexControl <- struct{}{}
+			// See what the main routine wants to do.
+			_, open := <-mutexControl
+			if !open {
+				// The main routine closed the channel because it
+				// gave up.
+				mutex.Unlock()
+			}
+		}
+	}()
+
+	hitTimeout := time.NewTimer(timeout)
+
+	select {
+	case <-hitTimeout.C:
+		close(mutexControl)
+		return 0, &AcquireError{
+			reason: fmt.Sprintf("%s *sync.Mutex lock attempt exceeded timeout of %s",
+				unableToAcquirePrefix, timeout.String()),
+			// TODO: bool.
+		}
+	case <-mutexControl:
+		hitTimeout.Stop()
+		// TODO: Maybe reverse this?
+		mutexControl <- struct{}{}
+		// TODO: What happens if timeout == 0?
+		return timeout - time.Since(start), nil
+	}
 }
