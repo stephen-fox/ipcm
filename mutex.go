@@ -11,6 +11,8 @@ const (
 	configureErrPrefix    = "failed to configure mutex -"
 	unableToCreatePrefix  = "failed to create mutex -"
 	unableToAcquirePrefix = "failed to acquire mutex -"
+
+	infiniteOsMutexLockTimeout time.Duration = -1
 )
 
 // Mutex is (...).
