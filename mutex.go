@@ -15,12 +15,33 @@ const (
 	infiniteOsMutexLockTimeout time.Duration = -1
 )
 
-// Mutex is (...).
+// Mutex is a thread-safe object that functions in a similar manner to
+// sync.Mutex, only it works across process boundaries. It can be used to
+// orchestrate the execution of threads between different processes in the
+// same way that a sync.Mutex controls access to data between multiple
+// go routines.
+//
+// In other words, when one routine locks the mutex, all other routines within
+// the current process and external process(es) will block if they attempt to
+// lock the mutex.
 type Mutex interface {
+	// Lock locks the mutex.
+	//
+	// Be advised that any underlying errors that occur when locking
+	// the OS mutex are hidden from the caller when using this method.
+	// The underlying implementation of Lock() involves communicating
+	// with external system APIs that *can* fail. In the event of an
+	// API failure, the Lock() call will continue to retry until it
+	// is successful.
 	Lock()
 
+	// TimedTryLock attempts to lock the Mutex within the specified
+	// timeout. A non-nil error is returned when the Mutex cannot be
+	// locked in time.
 	TimedTryLock(time.Duration) error
 
+	// Unlock unlocks the Mutex. Like sync.Mutex, the method will panic
+	// if the Mutex is already unlocked.
 	Unlock()
 }
 
