@@ -13,7 +13,7 @@ import (
 func TestNewMutex(t *testing.T) {
 	env := setupTestEnv(t)
 
-	m, err := NewMutex(env.resource)
+	m, err := NewMutex(env.mutexConfig)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -22,7 +22,7 @@ func TestNewMutex(t *testing.T) {
 	defer m.Unlock()
 
 	o := testHarnessOptions{
-		resource: env.resource,
+		config: env.mutexConfig,
 	}
 
 	_, err = compileTestHarness(env, o, t).CombinedOutput()
@@ -39,7 +39,7 @@ func TestNewMutex_TimedTryLock(t *testing.T) {
 		testHarness.Wait()
 	}()
 
-	m, err := NewMutex(env.resource)
+	m, err := NewMutex(env.mutexConfig)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -69,7 +69,7 @@ func TestNewMutex_TimedTryLock(t *testing.T) {
 
 func TestNewMutex_MultipleRoutines(t *testing.T) {
 	env := setupTestEnv(t)
-	m, err := NewMutex(env.resource)
+	m, err := NewMutex(env.mutexConfig)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -108,7 +108,7 @@ func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
 	const half = expected / 2
 
 	options := testHarnessOptions{
-		resource:    env.resource,
+		config:      env.mutexConfig,
 		ipcFilePath: ipcFilePath,
 		ipcValue:    half,
 	}
@@ -117,7 +117,7 @@ func TestNewMutex_MultipleRoutinesIpc(t *testing.T) {
 	stderr := bytes.NewBuffer(nil)
 	testHarness.Stderr = stderr
 
-	m, err := NewMutex(env.resource)
+	m, err := NewMutex(env.mutexConfig)
 	if err != nil {
 		t.Fatal(err.Error())
 	}

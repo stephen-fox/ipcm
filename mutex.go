@@ -15,6 +15,37 @@ const (
 	infiniteOsMutexLockTimeout time.Duration = -1
 )
 
+// MutexConfig configures a Mutex.
+type MutexConfig struct {
+	// Resource is an object that exists outside of the running process.
+	// Other processes must use the same value to reference the Mutex.
+	//
+	// On unix systems, this must be a string representing a fully
+	// qualified file path.
+	// For example:
+	//  /var/myapplication/lock
+	//
+	// On Windows, this is a string representing the name of a Mutex
+	// object. The string can consist of any character except backslash.
+	// For more information, refer to the 'CreateMutexW' API documentation:
+	//  https://docs.microsoft.com/en-us/windows/desktop/api/synchapi/nf-synchapi-createmutexw
+	// For example:
+	//  myapplication
+	Resource string
+}
+
+func (o *MutexConfig) validate() error {
+	if len(strings.TrimSpace(o.Resource)) == 0 {
+		return &ConfigureError{
+			reason:     fmt.Sprintf("%s a well known resource was not specified",
+				configureErrPrefix),
+			noResource: true,
+		}
+	}
+
+	return nil
+}
+
 // Mutex is a thread-safe object that functions in a similar manner to
 // sync.Mutex, only it works across process boundaries. It can be used to
 // orchestrate the execution of threads between different processes in the
@@ -43,18 +74,6 @@ type Mutex interface {
 	// Unlock unlocks the Mutex. Like sync.Mutex, the method will panic
 	// if the Mutex is already unlocked.
 	Unlock()
-}
-
-func validateResourceCommon(resource string) error {
-	if len(strings.TrimSpace(resource)) == 0 {
-		return &ConfigureError{
-			reason:     fmt.Sprintf("%s a well known resource was not specified",
-				configureErrPrefix),
-			noResource: true,
-		}
-	}
-
-	return nil
 }
 
 // timedSyncMutexLock attempts to lock the supplied *sync.Mutex within the

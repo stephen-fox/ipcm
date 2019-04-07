@@ -26,7 +26,9 @@ func main() {
 
 	flag.Parse()
 
-	m, err := lock.NewMutex(*resource)
+	m, err := lock.NewMutex(lock.MutexConfig{
+		Resource: *resource,
+	})
 	if err != nil {
 		log.Fatalln(err.Error())
 	}

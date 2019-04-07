@@ -18,9 +18,9 @@ const (
 )
 
 type unixMutex struct {
-	mutex *sync.Mutex
-	file  *os.File
-	path  string
+	mutex  *sync.Mutex
+	file   *os.File
+	config MutexConfig
 }
 
 func (o *unixMutex) Lock() {
@@ -79,7 +79,7 @@ func (o *unixMutex) resetFileUnsafe() error {
 		o.file.Close()
 	}
 
-	err := os.MkdirAll(path.Dir(o.path), dirMode)
+	err := os.MkdirAll(path.Dir(o.config.Resource), dirMode)
 	if err != nil {
 		return &AcquireError{
 			reason:  fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),
@@ -87,7 +87,7 @@ func (o *unixMutex) resetFileUnsafe() error {
 		}
 	}
 
-	o.file, err = os.OpenFile(o.path, os.O_RDONLY|os.O_CREATE, lockMode)
+	o.file, err = os.OpenFile(o.config.Resource, os.O_RDONLY|os.O_CREATE, lockMode)
 	if err != nil {
 		return &AcquireError{
 			reason:     fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),
@@ -111,33 +111,24 @@ func (o *unixMutex) Unlock() {
 	}
 }
 
-// NewMutex creates a new mutex using an object that exists outside of
-// the application.
-//
-// New instances of an application must use the same argument
-// when acquiring the Mutex.
-//
-// On unix systems, this must be a string representing a fully qualified
-// file path.
-// For example:
-// 	/var/myapplication/lock
-func NewMutex(resourcePath string) (Mutex, error) {
-	err := validateResourceCommon(resourcePath)
+// NewMutex creates a new Mutex.
+func NewMutex(config MutexConfig) (Mutex, error) {
+	err := config.validate()
 	if err != nil {
 		return nil, err
 	}
 
-	if !path.IsAbs(resourcePath) || len(resourcePath) == 1 {
+	if !path.IsAbs(config.Resource) || len(config.Resource) == 1 {
 		return nil, &ConfigureError{
 			reason: fmt.Sprintf("%s the specified resource is not a fully qualified file path - '%s'",
-				configureErrPrefix, resourcePath),
+				configureErrPrefix, config.Resource),
 			notAbs: true,
 		}
 	}
 
 	mu := &unixMutex{
-		mutex: &sync.Mutex{},
-		path:  resourcePath,
+		mutex:  &sync.Mutex{},
+		config: config,
 	}
 
 	err = mu.resetFileUnsafe()

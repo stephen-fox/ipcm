@@ -14,7 +14,7 @@ import (
 
 // testEnv contains information about the test environment.
 type testEnv struct {
-	resource       string
+	mutexConfig    MutexConfig
 	dataDirPath    string
 	harnessSrcPath string
 }
@@ -22,9 +22,8 @@ type testEnv struct {
 // testHarnessOptions represents all of the possible options available when
 // running the test harness.
 type testHarnessOptions struct {
-	// resource is the external resource to manipulate (e.g., a
-	// fle path).
-	resource string
+	// config is the MutexConfig.
+	config MutexConfig
 
 	// loopForever, when true, will make the test harness loop forever.
 	loopForever bool
@@ -41,11 +40,11 @@ type testHarnessOptions struct {
 }
 
 func (o testHarnessOptions) args(t *testing.T) []string {
-	if len(o.resource) == 0 {
+	if len(o.config.Resource) == 0 {
 		t.Fatal("mutex resource was not specified for test harness")
 	}
 
-	args := []string{"-resource", o.resource}
+	args := []string{"-resource", o.config.Resource}
 
 	if o.loopForever {
 		args = append(args, "-loop")
@@ -86,7 +85,9 @@ func setupTestEnv(t *testing.T) testEnv {
 	}
 
 	return testEnv{
-		resource:       resource,
+		mutexConfig:    MutexConfig{
+			Resource: resource,
+		},
 		dataDirPath:    testDataDir,
 		harnessSrcPath: path.Join(dirPath, "cmd/testharness/main.go"),
 	}
@@ -124,7 +125,7 @@ func compileTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *
 // Callers are responsible for the lifecycle of the returned process.
 func newProcessLocksAndIdles(env testEnv, t *testing.T) *exec.Cmd {
 	o := testHarnessOptions{
-		resource:    env.resource,
+		config:      env.mutexConfig,
 		loopForever: true,
 	}
 	testHarness := compileTestHarness(env, o, t)

@@ -19,7 +19,7 @@ const (
 
 // TODO: Close handle?
 type windowsMutex struct {
-	resource    string
+	config      MutexConfig
 	mutex       *sync.Mutex
 	winMutexApi *windowsMutexApi
 	mutexHandle uintptr
@@ -51,7 +51,7 @@ func (o *windowsMutex) lockOsMutexUnsafe(timeout time.Duration) error {
 
 	// TODO: Global should be an OS specific option.
 	// TODO: Should this be stored in the object as a field?
-	mutexId := uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(globalPrefix + o.resource)))
+	mutexId := uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(globalPrefix + o.config.Resource)))
 
 	mutexHandle, _, err := o.winMutexApi.createMutex.Call(0, 0, mutexId)
 	createMutexErrNum := int(err.(windows.Errno))
@@ -134,24 +134,13 @@ type windowsMutexApi struct {
 	release             *windows.LazyProc
 }
 
-// NewMutex creates a new mutex using an object that exists outside of
-// the application.
-//
-// New instances of an application must use the same argument when acquiring
-// the Mutex.
-//
-// On Windows systems, this must be a string representing the name of a mutex
-// object. The string can consist of any character except backslash. For more
-// information, refer to the 'CreateMutexW' API documentation:
-//  https://docs.microsoft.com/en-us/windows/desktop/api/synchapi/nf-synchapi-createmutexw
-// For example:
-// 	myapplication
+// NewMutex creates a new Mutex.
 //
 // Be advised that Windows requires the Mutex be unlocked or released by the
 // same thread that originally locked the Mutex. Please review
 // 'runtime.LockOSThread()' for more information.
-func NewMutex(resourceName string) (Mutex, error) {
-	err := validateResourceCommon(resourceName)
+func NewMutex(config MutexConfig) (Mutex, error) {
+	err := config.validate()
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +152,7 @@ func NewMutex(resourceName string) (Mutex, error) {
 
 	mu := &windowsMutex{
 		mutex:       &sync.Mutex{},
-		resource:    resourceName,
+		config:      config,
 		winMutexApi: winApi,
 	}
 
