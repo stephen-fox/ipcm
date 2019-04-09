@@ -82,44 +82,32 @@ type Mutex interface {
 // the timeout.
 func timedSyncMutexLock(mutex *sync.Mutex, timeout time.Duration) (time.Duration, error) {
 	start := time.Now()
-	mutexControl := make(chan struct{})
+	mutexOwnership := make(chan struct{})
 
 	go func() {
 		mutex.Lock()
 
-		select {
-		case <-mutexControl:
-			// Channel is closed - the main routine has
-			// given up.
+		_, shouldStayLocked := <-mutexOwnership
+		if !shouldStayLocked {
+			// The main routine closed the channel because it
+			// gave up.
 			mutex.Unlock()
-		default:
-			// Channel is still open, let the main routine know
-			// that we locked the mutex.
-			mutexControl <- struct{}{}
-			// See what the main routine wants to do.
-			_, open := <-mutexControl
-			if !open {
-				// The main routine closed the channel because it
-				// gave up.
-				mutex.Unlock()
-			}
 		}
 	}()
 
-	hitTimeout := time.NewTimer(timeout)
+	timeoutExceeded := time.NewTimer(timeout)
 
 	select {
-	case <-hitTimeout.C:
-		close(mutexControl)
+	case <-timeoutExceeded.C:
+		close(mutexOwnership)
 		return 0, &AcquireError{
 			reason: fmt.Sprintf("%s *sync.Mutex lock attempt exceeded timeout of %s",
 				unableToAcquirePrefix, timeout.String()),
 			// TODO: bool.
 		}
-	case <-mutexControl:
-		hitTimeout.Stop()
-		// TODO: Maybe reverse this?
-		mutexControl <- struct{}{}
+	case mutexOwnership <- struct{}{}:
+		// The background routine has successfully locked the mutex.
+		timeoutExceeded.Stop()
 		// TODO: What happens if timeout == 0?
 		return timeout - time.Since(start), nil
 	}
