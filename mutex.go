@@ -98,7 +98,7 @@ func timedSyncMutexLock(mutex *sync.Mutex, timeout time.Duration) (time.Duration
 	select {
 	case <-timeoutExceeded.C:
 		close(mutexOwnership)
-		return 0, &AcquireError{
+		return 0, &LockError{
 			reason:      fmt.Sprintf("%s *sync.Mutex lock attempt exceeded timeout of %s",
 				unableToAcquirePrefix, timeout.String()),
 			syncTimeout: true,

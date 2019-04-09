@@ -64,7 +64,7 @@ func (o *windowsMutex) lockOsMutexUnsafe(timeout time.Duration) error {
 		if timeout == infiniteOsMutexLockTimeout {
 			return o.lockOsMutexUnsafe(timeout)
 		}
-		return &AcquireError{
+		return &LockError{
 			reason:     fmt.Sprintf("%s got return code %d - %s",
 				unableToCreatePrefix, createMutexErrNum, err.Error()),
 			createFail: true,
@@ -88,7 +88,7 @@ func (o *windowsMutex) lockOsMutexUnsafe(timeout time.Duration) error {
 	case windows.WAIT_ABANDONED:
 		return o.lockOsMutexUnsafe(timeout - time.Since(start))
 	case windows.WAIT_TIMEOUT:
-		return &AcquireError{
+		return &LockError{
 			reason:        fmt.Sprintf("%s exceeded wait timeout of %s",
 				unableToAcquirePrefix, timeout.String()),
 			systemTimeout: true,
@@ -96,7 +96,7 @@ func (o *windowsMutex) lockOsMutexUnsafe(timeout time.Duration) error {
 	case windows.WAIT_FAILED:
 		waitForErrNum := int(err.(windows.Errno))
 		if waitForErrNum != 0 {
-			return &AcquireError{
+			return &LockError{
 				reason:        fmt.Sprintf("%s got return code %d - %s",
 					unableToAcquirePrefix, waitForErrNum, err.Error()),
 				syscallFailed: true,
@@ -104,7 +104,7 @@ func (o *windowsMutex) lockOsMutexUnsafe(timeout time.Duration) error {
 		}
 	}
 
-	return &AcquireError{
+	return &LockError{
 		reason:         fmt.Sprintf("%s system mutex wait failed, got return code %d",
 			unableToAcquirePrefix, waitResult),
 		syscallFailed:  true,
@@ -162,7 +162,7 @@ func NewMutex(config MutexConfig) (Mutex, error) {
 func loadWindowsMutexApi() (*windowsMutexApi, error) {
 	kernel32 := windows.NewLazyDLL(kernel32Name)
 	if kernel32 == nil {
-		return nil, &AcquireError{
+		return nil, &LockError{
 			reason:      fmt.Sprintf("%s failed to load %s",
 				unableToCreatePrefix, kernel32Name),
 			dllLoadFail: true,
@@ -171,7 +171,7 @@ func loadWindowsMutexApi() (*windowsMutexApi, error) {
 
 	createMutexProc, err := getProcedure(createMutexW, kernel32)
 	if err != nil {
-		return nil, &AcquireError{
+		return nil, &LockError{
 			reason:       fmt.Sprintf("%s %s",
 				unableToCreatePrefix, err.Error()),
 			procLoadFail: true,
@@ -180,7 +180,7 @@ func loadWindowsMutexApi() (*windowsMutexApi, error) {
 
 	waitForSingleObjectProc, err := getProcedure(waitForSingleObject, kernel32)
 	if err != nil {
-		return nil, &AcquireError{
+		return nil, &LockError{
 			reason:       fmt.Sprintf("%s - %s",
 				unableToCreatePrefix, err.Error()),
 			procLoadFail: true,
@@ -189,7 +189,7 @@ func loadWindowsMutexApi() (*windowsMutexApi, error) {
 
 	releaseMutexProc, err := getProcedure(releaseMutex, kernel32)
 	if err != nil {
-		return nil, &AcquireError{
+		return nil, &LockError{
 			reason:       fmt.Sprintf("%s - %s",
 				unableToCreatePrefix, err.Error()),
 			procLoadFail: true,

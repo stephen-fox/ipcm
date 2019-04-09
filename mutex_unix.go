@@ -41,7 +41,7 @@ func (o *unixMutex) TimedTryLock(timeout time.Duration) error {
 
 	o.mutex.Unlock()
 
-	return &AcquireError{
+	return &LockError{
 		reason:        fmt.Sprintf("%s system flock took longer than %s",
 			unableToAcquirePrefix, timeout.String()),
 		systemTimeout: true,
@@ -81,7 +81,7 @@ func (o *unixMutex) resetFileUnsafe() error {
 
 	err := os.MkdirAll(path.Dir(o.config.Resource), dirMode)
 	if err != nil {
-		return &AcquireError{
+		return &LockError{
 			reason:  fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),
 			dirFail: true,
 		}
@@ -89,7 +89,7 @@ func (o *unixMutex) resetFileUnsafe() error {
 
 	o.file, err = os.OpenFile(o.config.Resource, os.O_RDONLY|os.O_CREATE, lockMode)
 	if err != nil {
-		return &AcquireError{
+		return &LockError{
 			reason:     fmt.Sprintf("%s %s", unableToCreatePrefix, err.Error()),
 			createFail: true,
 		}
