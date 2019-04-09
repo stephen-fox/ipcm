@@ -99,9 +99,9 @@ func timedSyncMutexLock(mutex *sync.Mutex, timeout time.Duration) (time.Duration
 	case <-timeoutExceeded.C:
 		close(mutexOwnership)
 		return 0, &AcquireError{
-			reason: fmt.Sprintf("%s *sync.Mutex lock attempt exceeded timeout of %s",
+			reason:   fmt.Sprintf("%s *sync.Mutex lock attempt exceeded timeout of %s",
 				unableToAcquirePrefix, timeout.String()),
-			// TODO: bool.
+			syncFail: true,
 		}
 	case mutexOwnership <- struct{}{}:
 		// The background routine has successfully locked the mutex.

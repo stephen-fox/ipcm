@@ -26,6 +26,7 @@ type AcquireError struct {
 	dirFail    bool
 	dllFail    bool
 	procFail   bool
+	syncFail   bool
 }
 
 func (o *AcquireError) Error() string {
@@ -54,4 +55,8 @@ func (o *AcquireError) WindowsDllLoadFailed() bool {
 
 func (o *AcquireError) WindowsProcedureFailed() bool {
 	return o.procFail
+}
+
+func (o *AcquireError) SyncMutexLockTimedOut() bool {
+	return o.syncFail
 }
