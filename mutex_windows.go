@@ -89,9 +89,9 @@ func (o *windowsMutex) lockOsMutexUnsafe(timeout time.Duration) error {
 		return o.lockOsMutexUnsafe(timeout - time.Since(start))
 	case windows.WAIT_TIMEOUT:
 		return &AcquireError{
-			reason: fmt.Sprintf("%s exceeded wait timeout of %s",
+			reason:        fmt.Sprintf("%s exceeded wait timeout of %s",
 				unableToAcquirePrefix, timeout.String()),
-			inUse:  true,
+			systemTimeout: true,
 		}
 	case windows.WAIT_FAILED:
 		waitForErrNum := int(err.(windows.Errno))

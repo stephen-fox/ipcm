@@ -42,9 +42,9 @@ func (o *unixMutex) TimedTryLock(timeout time.Duration) error {
 	o.mutex.Unlock()
 
 	return &AcquireError{
-		reason: fmt.Sprintf("%s system flock took longer than %s",
+		reason:        fmt.Sprintf("%s system flock took longer than %s",
 			unableToAcquirePrefix, timeout.String()),
-		// TODO: bool.
+		systemTimeout: true,
 	}
 }
 

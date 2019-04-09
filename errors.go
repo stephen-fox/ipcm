@@ -19,14 +19,15 @@ func (o *ConfigureError) PathNotFullyQualified() bool {
 }
 
 type AcquireError struct {
-	reason     string
-	createFail bool
-	readFail   bool
-	inUse      bool
-	dirFail    bool
-	dllFail    bool
-	procFail   bool
-	syncFail   bool
+	reason        string
+	createFail    bool
+	readFail      bool
+	inUse         bool
+	dirFail       bool
+	dllFail       bool
+	procFail      bool
+	syncTimeout   bool
+	systemTimeout bool
 }
 
 func (o *AcquireError) Error() string {
@@ -58,5 +59,9 @@ func (o *AcquireError) WindowsProcedureFailed() bool {
 }
 
 func (o *AcquireError) SyncMutexLockTimedOut() bool {
-	return o.syncFail
+	return o.syncTimeout
+}
+
+func (o *AcquireError) SystemMutexLockTimedOut() bool {
+	return o.systemTimeout
 }
