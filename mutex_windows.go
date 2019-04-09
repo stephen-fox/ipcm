@@ -163,36 +163,36 @@ func loadWindowsMutexApi() (*windowsMutexApi, error) {
 	kernel32 := windows.NewLazyDLL(kernel32Name)
 	if kernel32 == nil {
 		return nil, &AcquireError{
-			reason:  fmt.Sprintf("%s failed to load %s",
+			reason:      fmt.Sprintf("%s failed to load %s",
 				unableToCreatePrefix, kernel32Name),
-			dllFail: true,
+			dllLoadFail: true,
 		}
 	}
 
 	createMutexProc, err := getProcedure(createMutexW, kernel32)
 	if err != nil {
 		return nil, &AcquireError{
-			reason:   fmt.Sprintf("%s %s",
+			reason:       fmt.Sprintf("%s %s",
 				unableToCreatePrefix, err.Error()),
-			procFail: true,
+			procLoadFail: true,
 		}
 	}
 
 	waitForSingleObjectProc, err := getProcedure(waitForSingleObject, kernel32)
 	if err != nil {
 		return nil, &AcquireError{
-			reason:   fmt.Sprintf("%s - %s",
+			reason:       fmt.Sprintf("%s - %s",
 				unableToCreatePrefix, err.Error()),
-			procFail: true,
+			procLoadFail: true,
 		}
 	}
 
 	releaseMutexProc, err := getProcedure(releaseMutex, kernel32)
 	if err != nil {
 		return nil, &AcquireError{
-			reason:   fmt.Sprintf("%s - %s",
+			reason:       fmt.Sprintf("%s - %s",
 				unableToCreatePrefix, err.Error()),
-			procFail: true,
+			procLoadFail: true,
 		}
 	}
 

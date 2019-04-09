@@ -21,11 +21,9 @@ func (o *ConfigureError) PathNotFullyQualified() bool {
 type AcquireError struct {
 	reason        string
 	createFail    bool
-	readFail      bool
-	inUse         bool
 	dirFail       bool
-	dllFail       bool
-	procFail      bool
+	dllLoadFail   bool
+	procLoadFail  bool
 	syncTimeout   bool
 	systemTimeout bool
 	syscallFailed bool
@@ -39,24 +37,16 @@ func (o *AcquireError) FailedToCreated() bool {
 	return o.createFail
 }
 
-func (o *AcquireError) ReadFailed() bool {
-	return o.readFail
-}
-
-func (o *AcquireError) AnotherInstanceOwnsLock() bool {
-	return o.inUse
-}
-
 func (o *AcquireError) FailedToCreateParentDirectory() bool {
 	return o.dirFail
 }
 
 func (o *AcquireError) WindowsDllLoadFailed() bool {
-	return o.dllFail
+	return o.dllLoadFail
 }
 
-func (o *AcquireError) WindowsProcedureFailed() bool {
-	return o.procFail
+func (o *AcquireError) WindowsProcedureLoadFailed() bool {
+	return o.procLoadFail
 }
 
 func (o *AcquireError) SyncMutexLockTimedOut() bool {
