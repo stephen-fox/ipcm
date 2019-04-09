@@ -58,12 +58,10 @@ func (o *MutexConfig) validate() error {
 type Mutex interface {
 	// Lock locks the mutex.
 	//
-	// Be advised that any underlying errors that occur when locking
-	// the OS mutex are hidden from the caller when using this method.
-	// The underlying implementation of Lock() involves communicating
-	// with external system APIs that *can* fail. In the event of an
-	// API failure, the Lock() call will continue to retry until it
-	// is successful.
+	// Be advised that this call will block until the mutex can be locked.
+	// If an error occurs while trying to lock the Mutex, the method will
+	// keep trying. Any underlying errors that occur when locking the OS
+	// mutex are hidden from the caller when using this method.
 	Lock()
 
 	// TimedTryLock attempts to lock the Mutex within the specified
@@ -71,7 +69,7 @@ type Mutex interface {
 	// locked in time.
 	TimedTryLock(time.Duration) error
 
-	// Unlock unlocks the Mutex. Like sync.Mutex, the method will panic
+	// Unlock unlocks the Mutex. Like sync.Mutex, this call will panic
 	// if the Mutex is already unlocked.
 	Unlock()
 }
