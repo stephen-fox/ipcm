@@ -97,17 +97,17 @@ func (o *windowsMutex) lockOsMutexUnsafe(timeout time.Duration) error {
 		waitForErrNum := int(err.(windows.Errno))
 		if waitForErrNum != 0 {
 			return &AcquireError{
-				reason: fmt.Sprintf("%s got return code %d - %s",
+				reason:        fmt.Sprintf("%s got return code %d - %s",
 					unableToAcquirePrefix, waitForErrNum, err.Error()),
-				inUse:  true,
+				syscallFailed: true,
 			}
 		}
 	}
 
 	return &AcquireError{
-		reason: fmt.Sprintf("%s system mutex wait failed, got return code %d",
+		reason:         fmt.Sprintf("%s system mutex wait failed, got return code %d",
 			unableToAcquirePrefix, waitResult),
-		inUse:  true,
+		syscallFailed:  true,
 	}
 }
 

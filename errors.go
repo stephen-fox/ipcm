@@ -28,6 +28,7 @@ type AcquireError struct {
 	procFail      bool
 	syncTimeout   bool
 	systemTimeout bool
+	syscallFailed bool
 }
 
 func (o *AcquireError) Error() string {
@@ -64,4 +65,8 @@ func (o *AcquireError) SyncMutexLockTimedOut() bool {
 
 func (o *AcquireError) SystemMutexLockTimedOut() bool {
 	return o.systemTimeout
+}
+
+func (o *AcquireError) SystemCallFailed() bool {
+	return o.syscallFailed
 }
