@@ -105,10 +105,7 @@ func (o *unixMutex) Unlock() {
 		return
 	}
 
-	err := unix.Flock(int(o.file.Fd()), unix.LOCK_UN)
-	if err != nil {
-		return
-	}
+	unix.Flock(int(o.file.Fd()), unix.LOCK_UN)
 }
 
 // NewMutex creates a new Mutex.
