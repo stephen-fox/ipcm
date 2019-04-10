@@ -99,7 +99,7 @@ func (o *unixMutex) resetFileUnsafe() error {
 }
 
 func (o *unixMutex) Unlock() {
-	o.mutex.Unlock()
+	defer o.mutex.Unlock()
 
 	if o.file == nil {
 		return
