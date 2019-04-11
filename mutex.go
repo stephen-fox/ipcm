@@ -11,6 +11,7 @@ const (
 	configureErrPrefix    = "failed to configure mutex -"
 	unableToCreatePrefix  = "failed to create mutex -"
 	unableToAcquirePrefix = "failed to acquire mutex -"
+	exceededOsLockTimeout = unableToAcquirePrefix + " exceeded wait timeout of %s while waiting for OS mutex"
 
 	infiniteOsMutexLockTimeout time.Duration = -1
 )
