@@ -35,26 +35,25 @@ func (o *unixMutex) TimedTryLock(timeout time.Duration) error {
 		return err
 	}
 
-	if o.lockOsMutexUnsafe(remaining) {
-		return nil
+	err = o.lockOsMutexUnsafe(remaining)
+	if err != nil {
+		o.mutex.Unlock()
+		return err
 	}
 
-	o.mutex.Unlock()
-
-	return &LockError{
-		reason:        fmt.Sprintf("%s system flock took longer than %s",
-			unableToAcquirePrefix, timeout.String()),
-		systemTimeout: true,
-	}
+	return nil
 }
 
-func (o *unixMutex) lockOsMutexUnsafe(timeout time.Duration) bool {
+func (o *unixMutex) lockOsMutexUnsafe(timeout time.Duration) error {
 	start := time.Now()
 	sleep := 100 * time.Millisecond
 
 	for {
 		if timeout > 0 && time.Since(start) >= timeout {
-			return false
+			return &LockError{
+				reason:        fmt.Sprintf(exceededOsLockTimeout, timeout.String()),
+				systemTimeout: true,
+			}
 		}
 
 		if _, statErr := o.file.Stat(); statErr != nil {
@@ -67,7 +66,7 @@ func (o *unixMutex) lockOsMutexUnsafe(timeout time.Duration) bool {
 
 		flockErr := unix.Flock(int(o.file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 		if flockErr == nil {
-			return true
+			return nil
 		}
 
 		time.Sleep(sleep)
