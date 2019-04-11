@@ -1,3 +1,3 @@
-// Package lock provides a simple application instance lock that allows the
-// caller to determine if the application is already running.
+// Package lock (Inter Process Mutex) provides tooling for orchestrating
+// inter-process communication (IPC) on different operating systems.
 package lock

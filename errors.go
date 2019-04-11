@@ -18,40 +18,45 @@ func (o *ConfigureError) PathNotFullyQualified() bool {
 	return o.notAbs
 }
 
-type AcquireError struct {
-	reason     string
-	createFail bool
-	readFail   bool
-	inUse      bool
-	dirFail    bool
-	dllFail    bool
-	procFail   bool
+type LockError struct {
+	reason        string
+	createFail    bool
+	dirFail       bool
+	dllLoadFail   bool
+	procLoadFail  bool
+	syncTimeout   bool
+	systemTimeout bool
+	syscallFailed bool
 }
 
-func (o *AcquireError) Error() string {
+func (o *LockError) Error() string {
 	return o.reason
 }
 
-func (o *AcquireError) FailedToCreated() bool {
+func (o *LockError) FailedToCreated() bool {
 	return o.createFail
 }
 
-func (o *AcquireError) ReadFailed() bool {
-	return o.readFail
-}
-
-func (o *AcquireError) AnotherInstanceOwnsLock() bool {
-	return o.inUse
-}
-
-func (o *AcquireError) FailedToCreateParentDirectory() bool {
+func (o *LockError) FailedToCreateParentDirectory() bool {
 	return o.dirFail
 }
 
-func (o *AcquireError) WindowsDllLoadFailed() bool {
-	return o.dllFail
+func (o *LockError) WindowsDllLoadFailed() bool {
+	return o.dllLoadFail
 }
 
-func (o *AcquireError) WindowsProcedureFailed() bool {
-	return o.procFail
+func (o *LockError) WindowsProcedureLoadFailed() bool {
+	return o.procLoadFail
+}
+
+func (o *LockError) SyncMutexLockTimedOut() bool {
+	return o.syncTimeout
+}
+
+func (o *LockError) SystemMutexLockTimedOut() bool {
+	return o.systemTimeout
+}
+
+func (o *LockError) SystemCallFailed() bool {
+	return o.syscallFailed
 }

@@ -2,39 +2,65 @@ package lock
 
 import (
 	"bytes"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 )
 
+// testEnv contains information about the test environment.
 type testEnv struct {
+	mutexConfig    MutexConfig
 	dataDirPath    string
 	harnessSrcPath string
 }
 
+// testHarnessOptions represents all of the possible options available when
+// running the test harness.
 type testHarnessOptions struct {
-	resource    string
+	// config is the MutexConfig.
+	config MutexConfig
+
+	// loopForever, when true, will make the test harness loop forever.
 	loopForever bool
+
+	// ipcFilePath is the file to write inter-process communication
+	// values to. When this is specified, the test harness will run
+	// in the ipc test mode. This means the test harness will spawn
+	// n go routines that will increment an integer in the ipc file.
+	ipcFilePath string
+
+	// ipcValue is the maximum amount of times the test harness should
+	// increment the ipc test value.
+	ipcValue int
 }
 
 func (o testHarnessOptions) args(t *testing.T) []string {
-	if len(o.resource) == 0 {
-		t.Fatal("lock resource was not specified for test harness")
+	if len(o.config.Resource) == 0 {
+		t.Fatal("mutex resource was not specified for test harness")
 	}
 
-	args := []string{"-resource", o.resource}
+	args := []string{"-resource", o.config.Resource}
 
 	if o.loopForever {
 		args = append(args, "-loop")
 	}
 
+	if len(o.ipcFilePath) > 0 {
+		args = append(args, "-ipcfile", o.ipcFilePath)
+		args = append(args, "-ipcvalue", strconv.Itoa(o.ipcValue))
+	}
+
 	return args
 }
 
-func setupLockFileTestEnv(t *testing.T) testEnv {
+// setupTestEnv creates the test data directory and gets information about
+// the repository.
+func setupTestEnv(t *testing.T) testEnv {
 	dirPath, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current working directory for testing - %s", err.Error())
@@ -52,13 +78,27 @@ func setupLockFileTestEnv(t *testing.T) testEnv {
 		t.Fatalf("failed to create test data directory - %s", err.Error())
 	}
 
+	name := randStringBytesRmndr(10)
+	resource := path.Join(testDataDir, name)
+	if runtime.GOOS == "windows" {
+		resource = name
+	}
+
 	return testEnv{
+		mutexConfig:    MutexConfig{
+			Resource: resource,
+		},
 		dataDirPath:    testDataDir,
 		harnessSrcPath: path.Join(dirPath, "cmd/testharness/main.go"),
 	}
 }
 
-func prepareTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *exec.Cmd {
+// compileTestHarness compiles the test harness application and returns
+// an *exec.Cmd representing the test harness with the provided
+// testHarnessOptions. The returned Cmd must be started by the caller.
+//
+// The current unit test will fail if any of these operations fail.
+func compileTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *exec.Cmd {
 	testHarnessExePath := path.Join(env.dataDirPath, "testharness")
 	if runtime.GOOS == "windows" {
 		testHarnessExePath = testHarnessExePath + ".exe"
@@ -77,17 +117,23 @@ func prepareTestHarness(env testEnv, options testHarnessOptions, t *testing.T) *
 	return exec.Command(testHarnessExePath, options.args(t)...)
 }
 
-func newProcessAcquiresLockAndIdles(env testEnv, resource string, t *testing.T) *exec.Cmd {
+// newProcessLocksAndIdles compiles and starts the test harness, at which
+// point it will acquire the mutex and then idle forever.
+//
+// The current unit test will fail if any of these operations fail.
+//
+// Callers are responsible for the lifecycle of the returned process.
+func newProcessLocksAndIdles(env testEnv, t *testing.T) *exec.Cmd {
 	o := testHarnessOptions{
-		resource:    resource,
+		config:      env.mutexConfig,
 		loopForever: true,
 	}
-	testHarness := prepareTestHarness(env, o, t)
+	testHarness := compileTestHarness(env, o, t)
 
 	// Need to start test harness async. We need to be able to
-	// test exactly when the harness acquires the lock, otherwise
+	// test exactly when the harness acquires the mutex, otherwise
 	// there is a race condition between the harness and the unit
-	// test when acquiring the lock.
+	// test when acquiring the mutex.
 	stdout := bytes.NewBuffer(nil)
 	testHarness.Stdout = stdout
 	stderr := bytes.NewBuffer(nil)
@@ -95,7 +141,7 @@ func newProcessAcquiresLockAndIdles(env testEnv, resource string, t *testing.T) 
 
 	err := testHarness.Start()
 	if err != nil {
-		t.Fatalf("test harness lock failed - %s", err.Error())
+		t.Fatalf("test harness failed to start - %s", err.Error())
 	}
 
 	start := time.Now()
@@ -109,7 +155,7 @@ func newProcessAcquiresLockAndIdles(env testEnv, resource string, t *testing.T) 
 		duration := time.Since(start)
 		if duration >= 5 * time.Second {
 			testHarness.Process.Kill()
-			t.Fatalf("test harness failed to acquire lock after %s - output: %s",
+			t.Fatalf("test harness failed to lock the mutex after %s - output: %s",
 				duration.String(), stderr.String())
 		}
 		time.Sleep(1 * time.Second)
@@ -118,3 +164,15 @@ func newProcessAcquiresLockAndIdles(env testEnv, resource string, t *testing.T) 
 	return testHarness
 }
 
+// randStringBytesRmndr by "icza":
+// https://stackoverflow.com/a/31832326
+func randStringBytesRmndr(n int) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Int63() % int64(len(letterBytes))]
+	}
+
+	return string(b)
+}
