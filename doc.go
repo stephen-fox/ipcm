@@ -1,3 +1,4 @@
-// Package lock (Inter Process Mutex) provides tooling for orchestrating
-// inter-process communication (IPC) on different operating systems.
-package lock
+// Package ipcm (Inter Process Communication Mutex) provides tooling for
+// orchestrating inter-process communication (IPC) on different
+// operating systems.
+package ipcm

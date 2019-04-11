@@ -1,6 +1,6 @@
 // +build !windows
 
-package lock
+package ipcm
 
 import (
 	"fmt"

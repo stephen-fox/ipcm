@@ -1,4 +1,4 @@
-package lock
+package ipcm
 
 type ConfigureError struct {
 	reason     string

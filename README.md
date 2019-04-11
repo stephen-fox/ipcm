@@ -1,4 +1,4 @@
-# lock
+# ipcm
 
 ## What is it?
 A Go library that provides tooling for orchestrating inter-process

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stephen-fox/lock"
+	"github.com/stephen-fox/ipcm"
 )
 
 // This application is a test harness for usage with the "unit" tests. In order
@@ -26,7 +26,7 @@ func main() {
 
 	flag.Parse()
 
-	m, err := lock.NewMutex(lock.MutexConfig{
+	m, err := ipcm.NewMutex(ipcm.MutexConfig{
 		Resource: *resource,
 	})
 	if err != nil {
@@ -56,7 +56,7 @@ func main() {
 	}
 }
 
-func doInterProcessCommunicationTest(m lock.Mutex, ipcValueFilePath string, maxValue int) error {
+func doInterProcessCommunicationTest(m ipcm.Mutex, ipcValueFilePath string, maxValue int) error {
 	if maxValue < 1 {
 		return fmt.Errorf("ipc value must be greater than 0")
 	}
